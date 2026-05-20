@@ -30,6 +30,7 @@ class VllmClientConfig:
 class VllmClient:
     def __init__(self, config: VllmClientConfig) -> None:
         self.config = config
+        self._model_revisions: dict[str, str] = {}
         self._client = OpenAI(
             base_url=config.base_url,
             api_key=config.api_key,
@@ -44,8 +45,12 @@ class VllmClient:
             try:
                 models = self._with_endpoint_retries(lambda: self._client.models.list())
                 model_ids = [model.id for model in models.data]
-                if expected_model_id in model_ids or model_ids:
+                if expected_model_id in model_ids:
                     return
+                if model_ids:
+                    last_error = RuntimeError(
+                        f"vLLM endpoint served {model_ids}, expected {expected_model_id}"
+                    )
             except (APIConnectionError, APITimeoutError) as exc:
                 last_error = exc
 
@@ -53,6 +58,7 @@ class VllmClient:
 
         message = f"Timed out waiting for vLLM endpoint at {self.config.base_url}"
         if last_error is not None:
+            message = f"{message}: {last_error}"
             raise TimeoutError(message) from last_error
         raise TimeoutError(message)
 
@@ -78,8 +84,13 @@ class VllmClient:
                 "completion_tokens": usage.completion_tokens if usage else 0,
                 "total_tokens": usage.total_tokens if usage else 0,
             },
-            "model_revision": resolve_model_revision(model_id),
+            "model_revision": self._resolve_model_revision(model_id),
         }
+
+    def _resolve_model_revision(self, model_id: str) -> str:
+        if model_id not in self._model_revisions:
+            self._model_revisions[model_id] = resolve_model_revision(model_id)
+        return self._model_revisions[model_id]
 
     def _with_endpoint_retries(self, operation: Callable[[], T]) -> T:
         attempts = self.config.max_retries + 1

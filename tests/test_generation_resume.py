@@ -2,7 +2,10 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from spider4ssc_zeroshot.run_generation import GenerationRequest, run_generation
+from spider4ssc_zeroshot.vllm_client import VllmClient, VllmClientConfig
 
 
 class FakeCompletionClient:
@@ -108,3 +111,123 @@ def test_run_generation_skips_existing_rows_and_appends_missing(tmp_path: Path):
         "created_at_utc": rows[1]["created_at_utc"],
     }
     assert rows[1]["created_at_utc"].endswith("Z")
+
+
+class _Model:
+    def __init__(self, model_id: str) -> None:
+        self.id = model_id
+
+
+class _ModelList:
+    def __init__(self, model_ids: list[str]) -> None:
+        self.data = [_Model(model_id) for model_id in model_ids]
+
+
+class _ModelsEndpoint:
+    def __init__(self, model_ids: list[str]) -> None:
+        self.model_ids = model_ids
+
+    def list(self) -> _ModelList:
+        return _ModelList(self.model_ids)
+
+
+class _Choice:
+    finish_reason = "stop"
+    message = SimpleNamespace(content="SELECT 1")
+
+
+class _Usage:
+    prompt_tokens = 2
+    completion_tokens = 3
+    total_tokens = 5
+
+
+class _CompletionsEndpoint:
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+
+    def create(self, **kwargs) -> SimpleNamespace:
+        self.calls.append(kwargs)
+        return SimpleNamespace(choices=[_Choice()], usage=_Usage())
+
+
+class _ChatEndpoint:
+    def __init__(self) -> None:
+        self.completions = _CompletionsEndpoint()
+
+
+class _FakeOpenAI:
+    def __init__(self, model_ids: list[str]) -> None:
+        self.models = _ModelsEndpoint(model_ids)
+        self.chat = _ChatEndpoint()
+
+
+def _client_with_fake_openai(model_ids: list[str], **overrides) -> VllmClient:
+    config = VllmClientConfig(
+        base_url="http://example.invalid/v1",
+        api_key="token",
+        readiness_timeout_seconds=0.001,
+        request_timeout_seconds=1,
+        max_retries=0,
+        retry_sleep_seconds=0,
+    )
+    config = SimpleNamespace(**{**config.__dict__, **overrides})
+    client = VllmClient(config)  # type: ignore[arg-type]
+    client._client = _FakeOpenAI(model_ids)
+    return client
+
+
+def test_wait_until_ready_rejects_wrong_served_model():
+    client = _client_with_fake_openai(["other-model"])
+
+    with pytest.raises(TimeoutError, match="expected expected-model"):
+        client.wait_until_ready("expected-model")
+
+
+def test_complete_supports_dict_decoding_and_caches_model_revision(monkeypatch):
+    revisions: list[str] = []
+
+    def fake_revision(model_id: str) -> str:
+        revisions.append(model_id)
+        return "revision-1"
+
+    monkeypatch.setattr("spider4ssc_zeroshot.vllm_client.resolve_model_revision", fake_revision)
+    client = _client_with_fake_openai(["test-model"])
+    decoding = {
+        "temperature": 0.0,
+        "top_p": 1.0,
+        "max_completion_tokens": 10,
+        "stop": ["```"],
+    }
+
+    first = client.complete("prompt", "test-model", decoding)
+    second = client.complete("prompt", "test-model", decoding)
+
+    assert first["model_revision"] == "revision-1"
+    assert second["model_revision"] == "revision-1"
+    assert revisions == ["test-model"]
+    assert client._client.chat.completions.calls[0] == {
+        "model": "test-model",
+        "messages": [{"role": "user", "content": "prompt"}],
+        "temperature": 0.0,
+        "top_p": 1.0,
+        "max_tokens": 10,
+        "stop": ["```"],
+    }
+
+
+def test_complete_attempts_once_when_max_retries_is_zero(monkeypatch):
+    monkeypatch.setattr(
+        "spider4ssc_zeroshot.vllm_client.resolve_model_revision",
+        lambda model_id: "revision-1",
+    )
+    client = _client_with_fake_openai(["test-model"])
+
+    result = client.complete(
+        "prompt",
+        "test-model",
+        {"temperature": 0.0, "top_p": 1.0, "max_completion_tokens": 10, "stop": []},
+    )
+
+    assert result["raw_completion"] == "SELECT 1"
+    assert len(client._client.chat.completions.calls) == 1
