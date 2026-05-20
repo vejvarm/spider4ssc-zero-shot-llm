@@ -27,4 +27,7 @@ Local changes after copying:
   and notebook/data examples are excluded from this reproducibility repository.
 - Optional imports for upstream training-only dependencies are guarded so schema
   serialization can run without installing the full training stack.
+- The RDF4J serving helper defaults to `database_test` for `--split test` and
+  exposes `--db-subfolder` so test-set graph loading uses the same layout as SQL
+  and Cypher evaluation.
 - No metric behavior is intentionally changed.

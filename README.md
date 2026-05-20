@@ -56,7 +56,8 @@ Load SPARQL and Cypher graph data:
 ```bash
 PYTHONPATH=src python -m spider4ssc_zeroshot.vendor.ut5_ssc.seq2seq.serve_rdf4j_graphs \
   data/Spider4SSC \
-  --split test
+  --split test \
+  --db-subfolder database_test
 
 NEO4J_DB_ROOT="$(pwd)/data/Spider4SSC" \
 NEO4J_DB_SUBFOLDER=database_test \

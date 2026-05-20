@@ -73,12 +73,14 @@ def generate(
 
     model = load_model_groups(models)[model_group][run_id]
     dataset_root = experiment.dataset.local_path
+    split_file = (
+        experiment.dataset.test_file if experiment.dataset.split == "test" else None
+    )
     examples = normalize_examples_for_language(
         load_split(
             dataset_root,
             experiment.dataset.split,
-            test_file=experiment.dataset.test_file,
-            test_db_dir=experiment.dataset.test_db_dir,
+            split_file=split_file,
         ),
         language,
     )

@@ -6,9 +6,14 @@ import pathlib
 from spider4ssc_zeroshot.vendor.ut5_ssc.third_party.test_suite.rdf4j_connector import RDF4jConnector
 
 
+def _default_db_subfolder(split):
+    return "database_test" if split == "test" else "database"
+
+
 async def main(args):
     dataset_folder = args.dataset_folder
     split = args.split
+    db_subfolder = args.db_subfolder or _default_db_subfolder(split)
 
     assert dataset_folder.exists()
 
@@ -44,7 +49,7 @@ async def main(args):
         try:
             await rdf4j.create_repository(kg_name)
             graph_uri = f"http://example.org/graph/{kg_name}"
-            ttl_file_path = dataset_folder.joinpath(f"database/{kg_name}/{kg_name}.ttl")
+            ttl_file_path = dataset_folder.joinpath(db_subfolder, kg_name, f"{kg_name}.ttl")
             await rdf4j.add_data_to_named_graph(kg_name, graph_uri, ttl_file_path)
             print(f"Repository {kg_name} created and populated with `{ttl_file_path}`")
         except Exception as e:
@@ -56,4 +61,5 @@ if __name__ == "__main__":
 
     parser.add_argument("dataset_folder", type=pathlib.Path, help="path to the root of the Spider4SSC dataset folder")
     parser.add_argument("--split", default="dev", choices=["test", "dev", "train", "all"], help="split for which to load the knowledge graphs")
+    parser.add_argument("--db-subfolder", help="dataset subfolder containing TTL files; defaults to database_test for test and database otherwise")
     asyncio.run(main(parser.parse_args()))
