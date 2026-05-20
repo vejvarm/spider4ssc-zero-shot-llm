@@ -8,12 +8,11 @@ description. Be careful not to query for attributes that do not exist.
     1) Use only the provided relationship types and properties in the schema.
     2) Do not include any explanations or apologies in your responses. Provide the
     output in one line.
-    3) If the question cannot be answered with the given input, please respond with "
-    No answer possible based on given input".
+    3) If the question cannot be answered with the given input, respond exactly: No answer possible based on given input.
     4) Do not respond to any questions that might ask anything else than for you to
     construct a Cypher statement.
     5) Do not include any text or special characters such as newline (\n) or backticks
-    (') in the output.
+    (`) in the output.
     6) Exclude the word "cypher" from your response.
 
     [Q] = Question, [Cypher] = Answer (correct query)

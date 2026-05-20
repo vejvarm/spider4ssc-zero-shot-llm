@@ -8,7 +8,7 @@ Initial scaffold for the reproducibility package. The full protocol is added aft
 
 ## Local API Keys
 
-The OpenAI-compatible vLLM API key is read from the environment variable named by `endpoint.api_key_env`. Local runs can use a dummy value because the server is local, but credentials are not committed to this repository.
+The OpenAI-compatible vLLM API key is read from `VLLM_API_KEY`, as configured by `endpoint.api_key_env` in `configs/experiment.yaml`. Local vLLM accepts a dummy value when the server was started with the same key, but credentials are not committed to this repository.
 
 ## Reproducible Resolver Workflow
 

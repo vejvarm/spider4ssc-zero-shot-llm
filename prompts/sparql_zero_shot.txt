@@ -9,9 +9,8 @@ for attributes that do not exist.
     SPARQL query.
     2) Do not include any explanations or apologies in your responses.
     3) Do not include any text or special characters such as newline (\n) or backticks
-    (') or (*) in the output.
-    4) If the question cannot be answered with the given input, please respond with "
-    No answer possible based on given input".
+    (`) or (*) in the output.
+    4) If the question cannot be answered with the given input, respond exactly: No answer possible based on given input.
     5) Do not include any PREFIXES, just assume the prefixes already exist and will be added later in the header.
     The defined prefixes are used to shorten long URI links in SPARQL queries and
     improve the readability of the query.
