@@ -68,3 +68,11 @@ def test_prepare_data_uses_config_local_path_when_output_is_omitted(tmp_path):
     assert (output / "test.json").exists()
     assert (output.parent / "Spider4SSC.manifest.json").exists()
     assert f"Prepared Spider4SSC at {output}" in result.output
+
+
+def test_cli_exposes_reproducibility_commands():
+    for command in ["prepare-data", "generate", "evaluate", "report"]:
+        result = CliRunner().invoke(app, [command, "--help"])
+
+        assert result.exit_code == 0
+        assert "Usage:" in result.output
