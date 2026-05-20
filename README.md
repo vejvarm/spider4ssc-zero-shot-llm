@@ -10,7 +10,7 @@ Initial scaffold for the reproducibility package. The full protocol is added aft
 
 The OpenAI-compatible vLLM API key is read from `VLLM_API_KEY`, as configured by `endpoint.api_key_env` in `configs/experiment.yaml`. Local vLLM accepts a dummy value when the server was started with the same key, but credentials are not committed to this repository.
 
-Spider4SSC can be copied from a local source tree with `spider4ssc-zeroshot prepare-data --source ...`. Remote archive downloads require `dataset.archive_sha256` in the experiment config so a mutable URL cannot be extracted without an integrity check.
+Spider4SSC can be copied from a local source tree with `spider4ssc-zeroshot prepare-data --source ...`. Remote archive downloads verify `dataset.archive_sha256` when it is provided; release runs should set it after recording the exact downloaded archive.
 
 ## Reproducible Resolver Workflow
 

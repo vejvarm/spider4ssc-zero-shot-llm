@@ -46,8 +46,8 @@ def _normalize_whitespace(text: str) -> str:
     return " ".join(text.split())
 
 
-def _starts_with_no_answer(text: str) -> bool:
-    return text.startswith(_NO_ANSWER_PREFIX)
+def _is_exact_no_answer(text: str) -> bool:
+    return text.rstrip(".").strip() == _NO_ANSWER_PREFIX
 
 
 def postprocess_completion(raw_completion: str, language: str) -> str:
@@ -59,7 +59,7 @@ def postprocess_completion(raw_completion: str, language: str) -> str:
     text = _strip_wrapping_marks(text.strip())
     text = _normalize_whitespace(text)
 
-    if _starts_with_no_answer(text):
+    if _is_exact_no_answer(text):
         return ""
     if _looks_like_refusal_or_prose(text):
         return ""

@@ -53,10 +53,10 @@ def test_postprocess_no_answer_sentence_returns_empty_string():
     assert postprocess_completion(raw_completion, "sql") == ""
 
 
-def test_postprocess_no_answer_with_extra_query_returns_empty_string():
+def test_postprocess_no_answer_with_extra_query_is_not_discarded():
     raw_completion = "No answer possible based on given input. SELECT 1"
 
-    assert postprocess_completion(raw_completion, "sql") == ""
+    assert postprocess_completion(raw_completion, "sql") == "SELECT 1"
 
 
 def test_postprocess_rejects_prose_that_mentions_query_keyword():
