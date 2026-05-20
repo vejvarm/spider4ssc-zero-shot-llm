@@ -178,10 +178,20 @@ def test_ensure_dataset_honors_non_test_split_layout(tmp_path):
     assert (output / "database").is_dir()
 
 
-def test_verify_sha256_allows_missing_expected_value(tmp_path):
+def test_verify_sha256_requires_expected_value(tmp_path):
     from spider4ssc_zeroshot.data import _verify_sha256
 
     archive_path = tmp_path / "Spider4SSC.tgz"
     archive_path.write_text("archive", encoding="utf-8")
 
-    _verify_sha256(archive_path, None)
+    with pytest.raises(ValueError, match="archive_sha256 is required"):
+        _verify_sha256(archive_path, None)
+
+
+def test_ensure_dataset_requires_checksum_for_download(tmp_path):
+    with pytest.raises(ValueError, match="archive_sha256 is required"):
+        ensure_dataset(
+            tmp_path / "Spider4SSC",
+            source=None,
+            url="https://example.org/Spider4SSC.tgz",
+        )
