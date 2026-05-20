@@ -133,7 +133,7 @@ def _download_file(url: str, output_path: Path) -> None:
 
 def _verify_sha256(path: Path, expected_sha256: str | None) -> None:
     if expected_sha256 is None:
-        return
+        raise ValueError("archive_sha256 is required when downloading Spider4SSC")
     actual_sha256 = _sha256(path)
     if actual_sha256.lower() != expected_sha256.lower():
         raise ValueError(
@@ -198,6 +198,8 @@ def ensure_dataset(
 
     if url is None:
         raise ValueError("Either source or url must be provided")
+    if archive_sha256 is None:
+        raise ValueError("archive_sha256 is required when downloading Spider4SSC")
 
     with tempfile.TemporaryDirectory(dir=root.parent) as staging_dir:
         staging = Path(staging_dir)

@@ -42,6 +42,27 @@ def test_load_split_assigns_example_ids():
     assert examples[0].gold_sql == "SELECT count(*) FROM student"
 
 
+def test_load_split_honors_custom_split_file(tmp_path):
+    custom_file = tmp_path / "custom_test.json"
+    custom_file.write_text(
+        json.dumps(
+            [
+                {
+                    "db_id": "tiny_school",
+                    "question": "How many?",
+                    "sql": "SELECT 1",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    examples = load_split(tmp_path, "test", split_file="custom_test.json")
+
+    assert len(examples) == 1
+    assert examples[0].gold_sql == "SELECT 1"
+
+
 def test_normalize_examples_sets_target_language():
     examples = load_split(FIXTURE, "test")
     normalized = normalize_examples_for_language(examples, "sparql")
@@ -123,3 +144,31 @@ def test_ensure_dataset_rejects_malformed_source(tmp_path):
 
     with pytest.raises(FileNotFoundError, match="missing required path"):
         ensure_dataset(output, source=source, url=None)
+
+
+def test_ensure_dataset_honors_custom_source_layout(tmp_path):
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "custom_test.json").write_text("[]", encoding="utf-8")
+    (source / "custom_database").mkdir()
+    output = tmp_path / "Spider4SSC"
+
+    ensure_dataset(
+        output,
+        source=source,
+        url=None,
+        test_file="custom_test.json",
+        test_db_dir="custom_database",
+    )
+
+    assert (output / "custom_test.json").exists()
+    assert (output / "custom_database").is_dir()
+
+
+def test_ensure_dataset_requires_checksum_for_download(tmp_path):
+    with pytest.raises(ValueError, match="archive_sha256 is required"):
+        ensure_dataset(
+            tmp_path / "Spider4SSC",
+            source=None,
+            url="https://example.org/Spider4SSC.tgz",
+        )

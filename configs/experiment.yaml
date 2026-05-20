@@ -5,6 +5,7 @@ dataset:
   split: test
   test_file: test.json
   test_db_dir: database_test
+  archive_sha256: null
 
 experiment:
   schema_serialization: compact
