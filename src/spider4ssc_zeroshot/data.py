@@ -6,7 +6,6 @@ import shutil
 import tarfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 import requests
 
@@ -25,9 +24,9 @@ class SpiderExample:
 
 
 def required_dataset_paths(root: Path, split: str) -> list[Path]:
-    if split == "test":
-        return [root / "test.json", root / "database_test"]
-    return [root / f"{split}.json", root / "database"]
+    if split != "test":
+        return [root / f"{split}.json", root / "database"]
+    return [root / "test.json", root / "database_test"]
 
 
 def ensure_dataset(root: Path, *, source: Path | None, url: str | None) -> None:
@@ -45,7 +44,7 @@ def ensure_dataset(root: Path, *, source: Path | None, url: str | None) -> None:
         return
 
     if url is None:
-        raise ValueError("Either source or url must be provided to prepare the dataset")
+        raise ValueError("Either source or url must be provided")
 
     archive_path = root.parent / "Spider4SSC.tgz"
     with requests.get(url, stream=True, timeout=60) as response:
@@ -63,39 +62,35 @@ def ensure_dataset(root: Path, *, source: Path | None, url: str | None) -> None:
 
 
 def load_split(root: Path, split: str) -> list[SpiderExample]:
-    split_path = root / f"{split}.json"
-    with split_path.open("r", encoding="utf-8") as handle:
-        records = json.load(handle)
-
-    if not isinstance(records, list):
-        raise ValueError(f"Expected a list of examples in {split_path}")
-
-    examples = []
-    for example_id, record in enumerate(records):
+    split_file = root / f"{split}.json"
+    with split_file.open("r", encoding="utf-8") as handle:
+        rows = json.load(handle)
+    examples: list[SpiderExample] = []
+    for example_id, row in enumerate(rows):
         examples.append(
             SpiderExample(
                 example_id=example_id,
                 split=split,
-                db_id=record["db_id"],
-                question=record["question"],
-                gold_sql=record.get("sql") or "",
-                gold_sparql=record.get("sparql") or "",
-                gold_cypher=record.get("cypher") or "",
+                db_id=row["db_id"],
+                question=row["question"],
+                gold_sql=row.get("sql") or "",
+                gold_sparql=row.get("sparql") or "",
+                gold_cypher=row.get("cypher") or "",
             )
         )
     return examples
 
 
-def normalize_examples_for_language(
-    examples: list[SpiderExample], language: str
-) -> list[dict[str, Any]]:
+def normalize_examples_for_language(examples: list[SpiderExample], language: str) -> list[dict]:
     if language not in SUPPORTED_LANGUAGES:
-        supported = ", ".join(sorted(SUPPORTED_LANGUAGES))
-        raise ValueError(f"Unsupported language: {language}. Supported languages: {supported}")
-
-    normalized = []
+        raise ValueError(f"Unsupported language: {language}")
+    normalized: list[dict] = []
     for example in examples:
-        query = getattr(example, f"gold_{language}")
+        language_gold = {
+            "sql": example.gold_sql,
+            "sparql": example.gold_sparql,
+            "cypher": example.gold_cypher,
+        }[language]
         normalized.append(
             {
                 "example_id": example.example_id,
@@ -105,7 +100,7 @@ def normalize_examples_for_language(
                 "db_id": example.db_id,
                 "question": example.question,
                 "sql": example.gold_sql,
-                "query": query,
+                "query": language_gold,
             }
         )
     return normalized
@@ -119,21 +114,22 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def compute_manifest(root: Path) -> dict[str, Any]:
-    files = [
-        {
-            "path": str(path.relative_to(root)),
-            "size_bytes": path.stat().st_size,
-            "sha256": _sha256(path),
-        }
-        for path in sorted(item for item in root.rglob("*") if item.is_file())
-    ]
+def compute_manifest(root: Path) -> dict:
+    files = []
+    for path in sorted(root.rglob("*")):
+        if path.is_file():
+            files.append(
+                {
+                    "path": path.relative_to(root).as_posix(),
+                    "size_bytes": path.stat().st_size,
+                    "sha256": _sha256(path),
+                }
+            )
     return {"root": str(root), "files": files}
 
 
 def write_manifest(root: Path, output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(
-        json.dumps(compute_manifest(root), indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
+    with output_path.open("w", encoding="utf-8") as handle:
+        json.dump(compute_manifest(root), handle, indent=2, sort_keys=True)
+        handle.write("\n")
