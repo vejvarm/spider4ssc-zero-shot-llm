@@ -84,7 +84,7 @@ In another terminal:
 
 ```bash
 . .venv/bin/activate
-python scripts/wait_for_vllm.py
+python scripts/wait_for_vllm.py --expected-model Qwen/Qwen3-4B-Instruct-2507
 ```
 
 ## Smoke Run
