@@ -38,6 +38,12 @@ def prepare_data(
     config: Annotated[Path, typer.Option()] = Path("configs/experiment.yaml"),
 ) -> None:
     experiment = load_experiment_config(config)
+    if source is None and experiment.dataset.archive_sha256 is None:
+        raise typer.BadParameter(
+            "dataset.archive_sha256 is required for remote downloads; "
+            "pass --source to copy a local Spider4SSC tree",
+            param_hint="--config",
+        )
     output_path = output or experiment.dataset.local_path
     ensure_dataset(
         output_path,
