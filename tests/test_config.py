@@ -114,6 +114,14 @@ def test_duplicate_languages_are_rejected():
         ExperimentConfig(**payload)
 
 
+def test_malformed_language_values_are_rejected_without_type_error():
+    payload = _valid_experiment_payload()
+    payload["experiment"]["languages"] = [["sql"]]
+
+    with pytest.raises(ValueError, match="Unsupported language"):
+        ExperimentConfig(**payload)
+
+
 def test_invalid_decode_and_endpoint_bounds_are_rejected():
     with pytest.raises(ValueError):
         DecodingConfig(top_p=0)

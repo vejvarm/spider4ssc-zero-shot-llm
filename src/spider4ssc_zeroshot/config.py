@@ -65,7 +65,11 @@ class ExperimentSettings(StrictBaseModel):
         if not isinstance(value, list):
             return value
         supported = {"sql", "sparql", "cypher"}
-        invalid = [language for language in value if language not in supported]
+        invalid = [
+            language
+            for language in value
+            if not isinstance(language, str) or language not in supported
+        ]
         if invalid:
             unsupported = ", ".join(str(language) for language in invalid)
             raise ValueError(f"Unsupported language(s): {unsupported}")
