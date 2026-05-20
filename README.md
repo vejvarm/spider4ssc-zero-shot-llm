@@ -40,9 +40,9 @@ spider4ssc-zeroshot prepare-data \
 ```
 
 The command writes `data/Spider4SSC.manifest.json` with file sizes and SHA-256
-hashes. Remote archive downloads verify `dataset.archive_sha256` when it is
-provided; release runs should set it after recording the exact downloaded
-archive.
+hashes. Remote archive downloads require `dataset.archive_sha256` in
+`configs/experiment.yaml` before any network request is made, so a mutable URL
+cannot be extracted without an integrity check.
 
 ## Start Datastores
 
