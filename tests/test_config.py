@@ -62,7 +62,7 @@ def test_load_experiment_config_reads_fixed_languages():
 
 
 def test_invalid_language_is_rejected():
-    with pytest.raises(ValueError, match="Input should be 'sql', 'sparql' or 'cypher'"):
+    with pytest.raises(ValueError, match="Unsupported language"):
         ExperimentConfig(
             dataset={
                 "name": "Spider4SSC",

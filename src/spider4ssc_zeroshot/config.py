@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 DType = Literal["auto", "half", "float16", "bfloat16", "float", "float32"]
 Language = Literal["sql", "sparql", "cypher"]
@@ -41,6 +41,18 @@ class ExperimentSettings(StrictBaseModel):
     prompt_files: dict[Language, Path]
     output_root: Path
     report_dir: Path
+
+    @field_validator("languages", mode="before")
+    @classmethod
+    def validate_languages(cls, value: object) -> object:
+        if not isinstance(value, list):
+            return value
+        supported = {"sql", "sparql", "cypher"}
+        invalid = [language for language in value if language not in supported]
+        if invalid:
+            unsupported = ", ".join(str(language) for language in invalid)
+            raise ValueError(f"Unsupported language(s): {unsupported}")
+        return value
 
     @model_validator(mode="after")
     def validate_prompt_files(self) -> ExperimentSettings:
