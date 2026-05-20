@@ -2,7 +2,7 @@
 
 This repository vendors a minimal subset of evaluation and schema utilities from:
 
-- `/home/vejvar-martin-nj/git/uT5-ssc`
+- uT5-ssc, the companion Spider4SSC training and evaluation repository
 - Spider test-suite evaluation code used by the Spider benchmark lineage
 - Spider4SSC data-loading and schema-serialization helpers used by the uT5 Spider4SSC experiments
 
