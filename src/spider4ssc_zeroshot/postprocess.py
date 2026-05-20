@@ -4,14 +4,19 @@ import re
 
 _KEYWORDS_BY_LANGUAGE = {
     "sql": ("WITH", "SELECT"),
-    "sparql": ("SELECT", "ASK", "CONSTRUCT", "DESCRIBE"),
-    "cypher": ("MATCH", "WITH", "CALL"),
+    "sparql": ("PREFIX", "BASE", "SELECT", "ASK", "CONSTRUCT", "DESCRIBE"),
+    "cypher": ("OPTIONAL MATCH", "MATCH", "WITH", "CALL"),
 }
 _NO_ANSWER_PREFIX = "No answer possible based on given input"
+_PROSE_REJECTION_PATTERNS = (
+    r"\bi\s+(?:can(?:not|'t)|cannot|don't|do not)\b",
+    r"\bnot\s+(?:possible|enough information|answerable)\b",
+)
 
 
 def _strip_think_blocks(text: str) -> str:
-    return re.sub(r"<think\b[^>]*>.*?</think>", "", text, flags=re.IGNORECASE | re.DOTALL)
+    text = re.sub(r"<think\b[^>]*>.*?</think>", "", text, flags=re.IGNORECASE | re.DOTALL)
+    return re.sub(r"<think\b[^>]*>.*", "", text, flags=re.IGNORECASE | re.DOTALL)
 
 
 def _strip_code_fences(text: str) -> str:
@@ -27,12 +32,22 @@ def _extract_from_first_keyword(text: str, keywords: tuple[str, ...]) -> str:
     keyword_pattern = "|".join(re.escape(keyword) for keyword in keywords)
     match = re.search(rf"\b({keyword_pattern})\b", text, flags=re.IGNORECASE)
     if match is None:
-        return text
+        return ""
     return text[match.start() :]
+
+
+def _looks_like_refusal_or_prose(text: str) -> bool:
+    return any(
+        re.search(pattern, text, flags=re.IGNORECASE) for pattern in _PROSE_REJECTION_PATTERNS
+    )
 
 
 def _normalize_whitespace(text: str) -> str:
     return " ".join(text.split())
+
+
+def _is_exact_no_answer(text: str) -> bool:
+    return text.rstrip(".").strip() == _NO_ANSWER_PREFIX
 
 
 def postprocess_completion(raw_completion: str, language: str) -> str:
@@ -44,7 +59,9 @@ def postprocess_completion(raw_completion: str, language: str) -> str:
     text = _strip_wrapping_marks(text.strip())
     text = _normalize_whitespace(text)
 
-    if text.startswith(_NO_ANSWER_PREFIX):
+    if _is_exact_no_answer(text):
+        return ""
+    if _looks_like_refusal_or_prose(text):
         return ""
 
     text = _extract_from_first_keyword(text, _KEYWORDS_BY_LANGUAGE[language])
