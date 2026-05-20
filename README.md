@@ -13,3 +13,7 @@ The OpenAI-compatible vLLM API key is read from `VLLM_API_KEY`, as configured by
 ## Reproducible Resolver Workflow
 
 Direct dependencies are pinned in `pyproject.toml`. After implementation, release artifacts should include the environment generated with `python -m pip freeze > requirements-lock.txt` from the validated Python 3.11 environment.
+
+## Source Checkout Assumption
+
+The default commands are intended to run from the repository root so that `configs/` and `prompts/` are available as source-tree files. Release packages should either include these files as package resources or require explicit `--config` and prompt paths.
