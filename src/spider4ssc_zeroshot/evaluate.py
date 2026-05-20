@@ -14,6 +14,9 @@ from spider4ssc_zeroshot.vendor.ut5_ssc.seq2seq.metrics.spidercypher.spider_test
 from spider4ssc_zeroshot.vendor.ut5_ssc.seq2seq.metrics.spidersparql.spider_test_suite import (
     compute_test_suite_metric as compute_sparql_test_suite_metric,
 )
+from spider4ssc_zeroshot.vendor.ut5_ssc.third_party.spider.preprocess.get_tables import (
+    dump_db_json_schema,
+)
 
 EVALUATOR_DESCRIPTION = (
     "Spider4SSC execution denotation; SPARQL/Cypher test use SQL-gold "
@@ -42,6 +45,49 @@ def _metric_for_language(language: str) -> MetricFunction:
     raise ValueError(f"Unsupported language: {language}")
 
 
+def _sql_reference_schema(dataset_root: Path, db_id: str) -> dict[str, Any]:
+    sqlite_path = dataset_root / "database_test" / db_id / f"{db_id}.sqlite"
+    schema = dump_db_json_schema(str(sqlite_path), db_id)
+    return {
+        "db_table_names": schema["table_names_original"],
+        "db_column_names": {
+            "table_id": [table_id for table_id, _ in schema["column_names_original"]],
+            "column_name": [
+                column_name for _, column_name in schema["column_names_original"]
+            ],
+        },
+        "db_foreign_keys": {
+            "column_id": [column_id for column_id, _ in schema["foreign_keys"]],
+            "other_column_id": [
+                other_column_id for _, other_column_id in schema["foreign_keys"]
+            ],
+        },
+    }
+
+
+def _build_references(
+    rows: list[dict[str, Any]],
+    dataset_root: Path,
+    language: str,
+) -> list[dict[str, Any]]:
+    schema_cache: dict[str, dict[str, Any]] = {}
+    references = []
+    for row in rows:
+        db_id = row["db_id"]
+        reference = {
+            "db_id": db_id,
+            "db_path": str(dataset_root / "database_test"),
+            "query": row["gold_sql"] if language == "sql" else "",
+            "sql": row["gold_sql"],
+        }
+        if language == "sql":
+            if db_id not in schema_cache:
+                schema_cache[db_id] = _sql_reference_schema(dataset_root, db_id)
+            reference.update(schema_cache[db_id])
+        references.append(reference)
+    return references
+
+
 def evaluate_predictions(
     predictions_file: Path,
     dataset_root: Path,
@@ -49,19 +95,14 @@ def evaluate_predictions(
     language: str,
     output_file: Path,
 ) -> dict[str, Any]:
-    rows = load_prediction_rows(predictions_file)
-    predictions = [row.get("prediction", "") for row in rows]
-    references = [
-        {
-            "db_id": row["db_id"],
-            "db_path": str(dataset_root / "database_test"),
-            "query": row["gold_sql"] if language == "sql" else "",
-            "sql": row["gold_sql"],
-        }
-        for row in rows
-    ]
-
     metric_fn = _metric_for_language(language)
+    rows = load_prediction_rows(predictions_file)
+    if not rows:
+        raise ValueError(f"No prediction rows found in {predictions_file}")
+
+    predictions = [row.get("prediction", "") for row in rows]
+    references = _build_references(rows, dataset_root, language)
+
     metric = metric_fn(
         predictions,
         references,
@@ -71,8 +112,8 @@ def evaluate_predictions(
 
     scores = {
         "run_id": run_id,
-        "model_id": rows[0].get("model_id", "unknown") if rows else "unknown",
-        "model_revision": rows[0].get("model_revision", "unknown") if rows else "unknown",
+        "model_id": rows[0].get("model_id", "unknown"),
+        "model_revision": rows[0].get("model_revision", "unknown"),
         "split": "test",
         "language": language,
         "schema": "compact",

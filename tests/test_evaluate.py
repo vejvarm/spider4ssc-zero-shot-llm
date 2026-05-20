@@ -1,4 +1,5 @@
 import json
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -14,6 +15,15 @@ def _write_jsonl(path: Path, rows: list[dict]) -> None:
     )
 
 
+def _create_sqlite_db(dataset_root: Path, db_id: str) -> None:
+    db_dir = dataset_root / "database_test" / db_id
+    db_dir.mkdir(parents=True)
+    connection = sqlite3.connect(db_dir / f"{db_id}.sqlite")
+    connection.execute("CREATE TABLE singer (id INTEGER PRIMARY KEY, name TEXT)")
+    connection.commit()
+    connection.close()
+
+
 def test_load_prediction_rows_skips_blank_lines(tmp_path: Path):
     predictions_file = tmp_path / "predictions.jsonl"
     predictions_file.write_text('{"example_id": 1}\n\n{"example_id": 2}\n', encoding="utf-8")
@@ -27,6 +37,7 @@ def test_load_prediction_rows_skips_blank_lines(tmp_path: Path):
 def test_evaluate_predictions_writes_scores_and_uses_metric(monkeypatch, tmp_path: Path):
     predictions_file = tmp_path / "predictions" / "sql.jsonl"
     dataset_root = tmp_path / "dataset"
+    _create_sqlite_db(dataset_root, "concert_singer")
     output_file = tmp_path / "runs" / "run-1" / "sql" / "scores.json"
     _write_jsonl(
         predictions_file,
@@ -83,12 +94,30 @@ def test_evaluate_predictions_writes_scores_and_uses_metric(monkeypatch, tmp_pat
                     "db_path": str(dataset_root / "database_test"),
                     "query": "SELECT count(*) FROM singer",
                     "sql": "SELECT count(*) FROM singer",
+                    "db_table_names": ["singer"],
+                    "db_column_names": {
+                        "table_id": [-1, 0, 0],
+                        "column_name": ["*", "id", "name"],
+                    },
+                    "db_foreign_keys": {
+                        "column_id": [],
+                        "other_column_id": [],
+                    },
                 },
                 {
                     "db_id": "concert_singer",
                     "db_path": str(dataset_root / "database_test"),
                     "query": "SELECT name FROM singer",
                     "sql": "SELECT name FROM singer",
+                    "db_table_names": ["singer"],
+                    "db_column_names": {
+                        "table_id": [-1, 0, 0],
+                        "column_name": ["*", "id", "name"],
+                    },
+                    "db_foreign_keys": {
+                        "column_id": [],
+                        "other_column_id": [],
+                    },
                 },
             ],
             "db_dir": str(dataset_root / "database_test"),
@@ -109,6 +138,23 @@ def test_evaluate_predictions_writes_scores_and_uses_metric(monkeypatch, tmp_pat
         "evaluator": evaluate.EVALUATOR_DESCRIPTION,
     }
     assert json.loads(output_file.read_text(encoding="utf-8")) == scores
+
+
+def test_evaluate_predictions_rejects_empty_prediction_file(tmp_path: Path):
+    predictions_file = tmp_path / "predictions.jsonl"
+    output_file = tmp_path / "scores.json"
+    _write_jsonl(predictions_file, [])
+
+    with pytest.raises(ValueError, match="No prediction rows found"):
+        evaluate.evaluate_predictions(
+            predictions_file=predictions_file,
+            dataset_root=tmp_path,
+            run_id="run-1",
+            language="sql",
+            output_file=output_file,
+        )
+
+    assert not output_file.exists()
 
 
 def test_evaluate_predictions_uses_empty_query_for_cross_language(
@@ -151,7 +197,16 @@ def test_evaluate_predictions_uses_empty_query_for_cross_language(
 
 def test_evaluate_predictions_rejects_unsupported_language(tmp_path: Path):
     predictions_file = tmp_path / "predictions.jsonl"
-    _write_jsonl(predictions_file, [])
+    _write_jsonl(
+        predictions_file,
+        [
+            {
+                "db_id": "pets",
+                "gold_sql": "SELECT name FROM pets",
+                "prediction": "MATCH (p:Pet) RETURN p.name",
+            }
+        ],
+    )
 
     with pytest.raises(ValueError, match="Unsupported language"):
         evaluate.evaluate_predictions(
