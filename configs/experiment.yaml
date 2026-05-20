@@ -28,7 +28,7 @@ decoding:
 
 endpoint:
   base_url: http://localhost:8000/v1
-  api_key: token-abc123
+  api_key_env: VLLM_API_KEY
   readiness_timeout_seconds: 1800
   request_timeout_seconds: 180
   max_retries: 5

@@ -2,6 +2,14 @@
 
 Initial scaffold for the reproducibility package. The full protocol is added after the CLI, vLLM scripts, and datastore commands are implemented.
 
+## Data Source
+
+`configs/experiment.yaml` contains the public Spider4SSC archive URL used by the companion training repository's dataset loader. The query string is part of the public Dropbox download link, not a private credential. For release artifacts, record the downloaded archive and extracted files in `data/Spider4SSC.manifest.json`.
+
+## Local API Keys
+
+The OpenAI-compatible vLLM API key is read from the environment variable named by `endpoint.api_key_env`. Local runs can use a dummy value because the server is local, but credentials are not committed to this repository.
+
 ## Reproducible Resolver Workflow
 
 Direct dependencies are pinned in `pyproject.toml`. After implementation, release artifacts should include the environment generated with `python -m pip freeze > requirements-lock.txt` from the validated Python 3.11 environment.
