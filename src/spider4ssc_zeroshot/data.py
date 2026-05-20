@@ -29,6 +29,17 @@ def required_dataset_paths(root: Path, split: str) -> list[Path]:
     return [root / "test.json", root / "database_test"]
 
 
+def _missing_required_paths(root: Path, split: str) -> list[Path]:
+    return [path for path in required_dataset_paths(root, split) if not path.exists()]
+
+
+def _validate_required_paths(root: Path, split: str) -> None:
+    missing = _missing_required_paths(root, split)
+    if missing:
+        missing_text = ", ".join(str(path) for path in missing)
+        raise FileNotFoundError(f"Spider4SSC dataset is missing required path(s): {missing_text}")
+
+
 def ensure_dataset(root: Path, *, source: Path | None, url: str | None) -> None:
     if all(path.exists() for path in required_dataset_paths(root, "test")):
         return
@@ -41,6 +52,7 @@ def ensure_dataset(root: Path, *, source: Path | None, url: str | None) -> None:
         if root.exists():
             shutil.rmtree(root)
         shutil.copytree(source, root)
+        _validate_required_paths(root, "test")
         return
 
     if url is None:
@@ -59,6 +71,7 @@ def ensure_dataset(root: Path, *, source: Path | None, url: str | None) -> None:
 
     if not root.exists():
         raise FileNotFoundError(f"Archive did not create expected dataset root: {root}")
+    _validate_required_paths(root, "test")
 
 
 def load_split(root: Path, split: str) -> list[SpiderExample]:

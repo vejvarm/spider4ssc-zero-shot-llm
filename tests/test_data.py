@@ -1,8 +1,11 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from spider4ssc_zeroshot.data import (
     compute_manifest,
+    ensure_dataset,
     load_split,
     normalize_examples_for_language,
     required_dataset_paths,
@@ -44,3 +47,12 @@ def test_manifest_includes_sha256(tmp_path):
     assert manifest["root"] == str(tmp_path)
     assert manifest["files"][0]["path"] == "sample.json"
     assert len(manifest["files"][0]["sha256"]) == 64
+
+
+def test_ensure_dataset_rejects_malformed_source(tmp_path):
+    source = tmp_path / "source"
+    source.mkdir()
+    output = tmp_path / "Spider4SSC"
+
+    with pytest.raises(FileNotFoundError, match="missing required path"):
+        ensure_dataset(output, source=source, url=None)
