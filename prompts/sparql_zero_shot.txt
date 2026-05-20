@@ -15,8 +15,8 @@ for attributes that do not exist.
     The defined prefixes are used to shorten long URI links in SPARQL queries and
     improve the readability of the query.
     Instead of using the full URI links in the query, you can use the defined prefixes
-    to express the same meaning. For example, snomed: is used as a prefix for https
-    ://knacc.umbc.edu/dae-young/kim/ontologies/synthea#snomed:SNOMED-CT to avoid using
+    to express the same meaning. For example, snomed: can abbreviate
+    https://knacc.umbc.edu/dae-young/kim/ontologies/synthea#snomed:SNOMED-CT to avoid using
     the full link.
     [Q] = Question, [SPARQL] = Answer (correct query)
 With all the information given, provide a SPARQL query to the following question:
