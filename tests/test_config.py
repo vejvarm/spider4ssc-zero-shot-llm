@@ -123,6 +123,25 @@ def test_invalid_decode_and_endpoint_bounds_are_rejected():
         EndpointConfig(request_timeout_seconds=0)
 
 
+def test_float_fields_reject_integer_values():
+    with pytest.raises(ValueError, match="top_p must be a float"):
+        DecodingConfig(top_p=1)
+    with pytest.raises(ValueError, match="temperature must be a float"):
+        DecodingConfig(temperature=0)
+    with pytest.raises(ValueError, match="gpu_memory_utilization must be a float"):
+        ModelConfig(
+            model_id="fake/model",
+            family="fake",
+            size_label="fake",
+            tensor_parallel_size=1,
+            dtype="bfloat16",
+            gpu_memory_utilization=1,
+            max_model_len=8192,
+            trust_remote_code=False,
+            requires_hf_terms=False,
+        )
+
+
 def test_strict_scalars_reject_quoted_values():
     with pytest.raises(ValueError):
         DecodingConfig(top_p="0.5")

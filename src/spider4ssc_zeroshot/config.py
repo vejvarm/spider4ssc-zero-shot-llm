@@ -11,6 +11,7 @@ from pydantic import (
     StrictBool,
     StrictFloat,
     StrictInt,
+    ValidationInfo,
     field_validator,
     model_validator,
 )
@@ -33,6 +34,13 @@ class ModelConfig(StrictBaseModel):
     max_model_len: StrictInt = Field(ge=1024)
     trust_remote_code: StrictBool
     requires_hf_terms: StrictBool
+
+    @field_validator("gpu_memory_utilization", mode="before")
+    @classmethod
+    def validate_gpu_memory_utilization_float(cls, value: object) -> object:
+        if type(value) is not float:
+            raise ValueError("gpu_memory_utilization must be a float")
+        return value
 
 
 class DatasetConfig(StrictBaseModel):
@@ -77,6 +85,13 @@ class DecodingConfig(StrictBaseModel):
     top_p: StrictFloat = Field(default=1.0, gt=0.0, le=1.0)
     max_completion_tokens: StrictInt = Field(default=2048, ge=1)
     stop: list[str] = Field(default_factory=lambda: ["```"])
+
+    @field_validator("temperature", "top_p", mode="before")
+    @classmethod
+    def validate_float_value(cls, value: object, info: ValidationInfo) -> object:
+        if type(value) is not float:
+            raise ValueError(f"{info.field_name} must be a float")
+        return value
 
 
 class EndpointConfig(StrictBaseModel):
