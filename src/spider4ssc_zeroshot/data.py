@@ -37,23 +37,39 @@ def required_dataset_paths(
     return [root / test_file, root / test_db_dir]
 
 
-def _missing_required_paths(
+def _expected_path_types(
     root: Path,
     split: str,
     *,
     test_file: str = "test.json",
     test_db_dir: str = "database_test",
-) -> list[Path]:
-    return [
-        path
-        for path in required_dataset_paths(
-            root,
-            split,
-            test_file=test_file,
-            test_db_dir=test_db_dir,
-        )
-        if not path.exists()
-    ]
+) -> list[tuple[Path, str]]:
+    if split != "test":
+        return [(root / f"{split}.json", "file"), (root / "database", "directory")]
+    return [(root / test_file, "file"), (root / test_db_dir, "directory")]
+
+
+def _invalid_required_paths(
+    root: Path,
+    split: str,
+    *,
+    test_file: str = "test.json",
+    test_db_dir: str = "database_test",
+) -> list[str]:
+    invalid: list[str] = []
+    for path, expected_type in _expected_path_types(
+        root,
+        split,
+        test_file=test_file,
+        test_db_dir=test_db_dir,
+    ):
+        if not path.exists():
+            invalid.append(f"{path} (missing {expected_type})")
+        elif expected_type == "file" and not path.is_file():
+            invalid.append(f"{path} (expected file)")
+        elif expected_type == "directory" and not path.is_dir():
+            invalid.append(f"{path} (expected directory)")
+    return invalid
 
 
 def _validate_required_paths(
@@ -63,15 +79,15 @@ def _validate_required_paths(
     test_file: str = "test.json",
     test_db_dir: str = "database_test",
 ) -> None:
-    missing = _missing_required_paths(
+    invalid = _invalid_required_paths(
         root,
         split,
         test_file=test_file,
         test_db_dir=test_db_dir,
     )
-    if missing:
-        missing_text = ", ".join(str(path) for path in missing)
-        raise FileNotFoundError(f"Spider4SSC dataset is missing required path(s): {missing_text}")
+    if invalid:
+        invalid_text = ", ".join(invalid)
+        raise FileNotFoundError(f"Spider4SSC dataset has invalid required path(s): {invalid_text}")
 
 
 def _is_relative_to(child: Path, parent: Path) -> bool:
@@ -170,15 +186,11 @@ def ensure_dataset(
     test_db_dir: str = "database_test",
     archive_sha256: str | None = None,
 ) -> None:
-    if all(
-        path.exists()
-        for path in required_dataset_paths(
-            root,
-            split,
-            test_file=test_file,
-            test_db_dir=test_db_dir,
-        )
-    ):
+    try:
+        _validate_required_paths(root, split, test_file=test_file, test_db_dir=test_db_dir)
+    except FileNotFoundError:
+        pass
+    else:
         return
 
     root.parent.mkdir(parents=True, exist_ok=True)
@@ -186,17 +198,18 @@ def ensure_dataset(
     if source is not None:
         if not source.exists():
             raise FileNotFoundError(f"Dataset source does not exist: {source}")
-        if root.exists():
-            shutil.rmtree(root)
-        shutil.copytree(source, root)
-        _validate_required_paths(
-            root,
-            split,
-            test_file=test_file,
-            test_db_dir=test_db_dir,
-        )
+        with tempfile.TemporaryDirectory(dir=root.parent) as staging_dir:
+            staging = Path(staging_dir)
+            prepared_root = staging / root.name
+            shutil.copytree(source, prepared_root)
+            _validate_required_paths(
+                prepared_root,
+                split,
+                test_file=test_file,
+                test_db_dir=test_db_dir,
+            )
+            _promote_dataset(prepared_root, root)
         return
-
     if url is None:
         raise ValueError("Either source or url must be provided")
     if archive_sha256 is None:
