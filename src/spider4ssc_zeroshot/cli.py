@@ -22,17 +22,19 @@ def prepare_data(
         Path | None,
         typer.Option(exists=True, file_okay=False),
     ] = None,
-    output: Annotated[Path, typer.Option()] = Path("data/Spider4SSC"),
+    output: Annotated[Path | None, typer.Option()] = None,
     config: Annotated[Path, typer.Option()] = Path("configs/experiment.yaml"),
 ) -> None:
     experiment = load_experiment_config(config)
+    output_path = output or experiment.dataset.local_path
     ensure_dataset(
-        output,
+        output_path,
         source=source,
         url=experiment.dataset.url,
+        split=experiment.dataset.split,
         test_file=experiment.dataset.test_file,
         test_db_dir=experiment.dataset.test_db_dir,
         archive_sha256=experiment.dataset.archive_sha256,
     )
-    write_manifest(output, output.parent / "Spider4SSC.manifest.json")
-    typer.echo(f"Prepared Spider4SSC at {output}")
+    write_manifest(output_path, output_path.parent / "Spider4SSC.manifest.json")
+    typer.echo(f"Prepared Spider4SSC at {output_path}")

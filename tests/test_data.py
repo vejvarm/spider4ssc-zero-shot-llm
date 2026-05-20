@@ -165,6 +165,19 @@ def test_ensure_dataset_honors_custom_source_layout(tmp_path):
     assert (output / "custom_database").is_dir()
 
 
+def test_ensure_dataset_honors_non_test_split_layout(tmp_path):
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "dev.json").write_text("[]", encoding="utf-8")
+    (source / "database").mkdir()
+    output = tmp_path / "Spider4SSC"
+
+    ensure_dataset(output, source=source, url=None, split="dev")
+
+    assert (output / "dev.json").exists()
+    assert (output / "database").is_dir()
+
+
 def test_verify_sha256_allows_missing_expected_value(tmp_path):
     from spider4ssc_zeroshot.data import _verify_sha256
 

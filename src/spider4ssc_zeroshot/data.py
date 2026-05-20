@@ -165,6 +165,7 @@ def ensure_dataset(
     *,
     source: Path | None,
     url: str | None,
+    split: str = "test",
     test_file: str = "test.json",
     test_db_dir: str = "database_test",
     archive_sha256: str | None = None,
@@ -173,7 +174,7 @@ def ensure_dataset(
         path.exists()
         for path in required_dataset_paths(
             root,
-            "test",
+            split,
             test_file=test_file,
             test_db_dir=test_db_dir,
         )
@@ -190,7 +191,7 @@ def ensure_dataset(
         shutil.copytree(source, root)
         _validate_required_paths(
             root,
-            "test",
+            split,
             test_file=test_file,
             test_db_dir=test_db_dir,
         )
@@ -212,7 +213,7 @@ def ensure_dataset(
             )
         _validate_required_paths(
             prepared_root,
-            "test",
+            split,
             test_file=test_file,
             test_db_dir=test_db_dir,
         )
