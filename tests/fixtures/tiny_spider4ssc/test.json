@@ -1,0 +1,16 @@
+[
+  {
+    "db_id": "tiny_school",
+    "question": "How many students are there?",
+    "sql": "SELECT count(*) FROM student",
+    "sparql": null,
+    "cypher": null
+  },
+  {
+    "db_id": "tiny_school",
+    "question": "List student names.",
+    "sql": "SELECT name FROM student",
+    "sparql": null,
+    "cypher": null
+  }
+]
