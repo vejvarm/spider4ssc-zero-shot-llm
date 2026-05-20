@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -88,6 +90,28 @@ def _build_references(
     return references
 
 
+def _compute_metric_without_side_effect_files(
+    metric_fn: MetricFunction,
+    predictions: list[str],
+    references: list[dict[str, Any]],
+    *,
+    db_dir: Path,
+    language: str,
+) -> dict[str, Any]:
+    previous_cwd = Path.cwd()
+    with tempfile.TemporaryDirectory() as metric_cwd:
+        try:
+            os.chdir(metric_cwd)
+            return metric_fn(
+                predictions,
+                references,
+                db_dir=str(db_dir),
+                lang=language,
+            )
+        finally:
+            os.chdir(previous_cwd)
+
+
 def evaluate_predictions(
     predictions_file: Path,
     dataset_root: Path,
@@ -96,6 +120,9 @@ def evaluate_predictions(
     output_file: Path,
 ) -> dict[str, Any]:
     metric_fn = _metric_for_language(language)
+    dataset_root = dataset_root.resolve()
+    predictions_file = predictions_file.resolve()
+    output_file = output_file.resolve()
     rows = load_prediction_rows(predictions_file)
     if not rows:
         raise ValueError(f"No prediction rows found in {predictions_file}")
@@ -103,11 +130,12 @@ def evaluate_predictions(
     predictions = [row.get("prediction", "") for row in rows]
     references = _build_references(rows, dataset_root, language)
 
-    metric = metric_fn(
+    metric = _compute_metric_without_side_effect_files(
+        metric_fn,
         predictions,
         references,
-        db_dir=str(dataset_root / "database_test"),
-        lang=language,
+        db_dir=dataset_root / "database_test",
+        language=language,
     )
 
     scores = {

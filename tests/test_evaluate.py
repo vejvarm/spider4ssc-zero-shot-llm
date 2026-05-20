@@ -140,6 +140,40 @@ def test_evaluate_predictions_writes_scores_and_uses_metric(monkeypatch, tmp_pat
     assert json.loads(output_file.read_text(encoding="utf-8")) == scores
 
 
+def test_evaluate_predictions_does_not_write_vendored_metric_side_effect(
+    monkeypatch,
+    tmp_path: Path,
+):
+    predictions_file = tmp_path / "predictions" / "sql.jsonl"
+    dataset_root = tmp_path / "dataset"
+    _create_sqlite_db(dataset_root, "concert_singer")
+    _write_jsonl(
+        predictions_file,
+        [
+            {
+                "example_id": 1,
+                "language": "sql",
+                "db_id": "concert_singer",
+                "gold_sql": "SELECT count(*) FROM singer",
+                "prediction": "SELECT count(*) FROM singer",
+                "model_id": "model-a",
+                "model_revision": "rev-a",
+            }
+        ],
+    )
+    monkeypatch.chdir(tmp_path)
+
+    evaluate.evaluate_predictions(
+        predictions_file=predictions_file,
+        dataset_root=dataset_root,
+        run_id="run-1",
+        language="sql",
+        output_file=tmp_path / "scores.json",
+    )
+
+    assert not (tmp_path / "eval_scores_sql.json").exists()
+
+
 def test_evaluate_predictions_rejects_empty_prediction_file(tmp_path: Path):
     predictions_file = tmp_path / "predictions.jsonl"
     output_file = tmp_path / "scores.json"
