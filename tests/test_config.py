@@ -28,6 +28,7 @@ def test_load_experiment_config_reads_fixed_languages():
     assert config.decoding.temperature == 0.0
     assert config.decoding.max_completion_tokens == 2048
     assert config.endpoint.api_key_env == "VLLM_API_KEY"
+    assert not hasattr(config.endpoint, "api_key")
 
 
 def test_invalid_language_is_rejected():
