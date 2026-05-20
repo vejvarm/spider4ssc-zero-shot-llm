@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+MODEL_GROUP="${1:-main}"
+LIMIT="${2:-}"
+
+mapfile -t RUN_IDS < <(
+  python - "${MODEL_GROUP}" <<'PY'
+from pathlib import Path
+import sys
+
+from spider4ssc_zeroshot.config import load_model_groups
+
+model_group = sys.argv[1]
+for run_id in load_model_groups(Path("configs/models.yaml"))[model_group]:
+    print(run_id)
+PY
+)
+
+for RUN_ID in "${RUN_IDS[@]}"; do
+  echo "Start vLLM manually in another terminal:"
+  echo "  . .venv/bin/activate && VLLM_API_KEY=\${VLLM_API_KEY:-token-abc123} scripts/serve_vllm.sh ${RUN_ID} ${MODEL_GROUP}"
+  echo "Then press Enter here after the server is ready."
+  read -r _
+
+  python scripts/wait_for_vllm.py
+  for LANGUAGE in sql sparql cypher; do
+    if [[ -n "${LIMIT}" ]]; then
+      spider4ssc-zeroshot generate "${RUN_ID}" "${LANGUAGE}" --model-group "${MODEL_GROUP}" --limit "${LIMIT}"
+    else
+      spider4ssc-zeroshot generate "${RUN_ID}" "${LANGUAGE}" --model-group "${MODEL_GROUP}"
+    fi
+    spider4ssc-zeroshot evaluate "${RUN_ID}" "${LANGUAGE}"
+  done
+done
+
+spider4ssc-zeroshot report --runs-dir runs/test --output-dir reports
