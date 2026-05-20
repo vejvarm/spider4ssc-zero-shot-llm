@@ -50,6 +50,7 @@ class DatasetConfig(StrictBaseModel):
     split: str
     test_file: str
     test_db_dir: str
+    archive_sha256: str | None = None
 
 
 class ExperimentSettings(StrictBaseModel):
