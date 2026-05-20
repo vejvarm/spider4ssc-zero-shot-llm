@@ -1,0 +1,25 @@
+Given an input question create a syntactically correct SPARQL query leveraging the provided
+ontology and notes. Only query relevant attributes given the question. Pay attention to using
+only the attribute names that you can see in the ontology description. Be careful not to query
+for attributes that do not exist.
+    [Ontology]:
+    '{schema}'
+    [Notes]:
+    1) Use only the classes and properties provided in the ontology to construct the
+    SPARQL query.
+    2) Do not include any explanations or apologies in your responses.
+    3) Do not include any text or special characters such as newline (\n) or backticks
+    (') or (*) in the output.
+    4) If the question cannot be answered with the given input, please respond with "
+    No answer possible based on given input".
+    5) Do not include any PREFIXES, just assume the prefixes already exist and will be added later in the header.
+    The defined prefixes are used to shorten long URI links in SPARQL queries and
+    improve the readability of the query.
+    Instead of using the full URI links in the query, you can use the defined prefixes
+    to express the same meaning. For example, snomed: is used as a prefix for https
+    ://knacc.umbc.edu/dae-young/kim/ontologies/synthea#snomed:SNOMED-CT to avoid using
+    the full link.
+    [Q] = Question, [SPARQL] = Answer (correct query)
+With all the information given, provide a SPARQL query to the following question:
+[Q]: '{question}'
+[SPARQL]:

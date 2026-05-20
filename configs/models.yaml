@@ -1,0 +1,63 @@
+main:
+  qwen3_4b_instruct_2507:
+    model_id: Qwen/Qwen3-4B-Instruct-2507
+    family: qwen3
+    size_label: 4B
+    tensor_parallel_size: 1
+    dtype: bfloat16
+    gpu_memory_utilization: 0.90
+    max_model_len: 8192
+    trust_remote_code: false
+    requires_hf_terms: false
+  qwen3_30b_a3b_instruct_2507:
+    model_id: Qwen/Qwen3-30B-A3B-Instruct-2507
+    family: qwen3
+    size_label: 30B-A3B
+    tensor_parallel_size: 2
+    dtype: bfloat16
+    gpu_memory_utilization: 0.90
+    max_model_len: 8192
+    trust_remote_code: false
+    requires_hf_terms: false
+  gemma3_4b_it:
+    model_id: google/gemma-3-4b-it
+    family: gemma3
+    size_label: 4B
+    tensor_parallel_size: 1
+    dtype: bfloat16
+    gpu_memory_utilization: 0.90
+    max_model_len: 8192
+    trust_remote_code: false
+    requires_hf_terms: true
+  gemma3_27b_it:
+    model_id: google/gemma-3-27b-it
+    family: gemma3
+    size_label: 27B
+    tensor_parallel_size: 2
+    dtype: bfloat16
+    gpu_memory_utilization: 0.90
+    max_model_len: 8192
+    trust_remote_code: false
+    requires_hf_terms: true
+
+appendix:
+  gemma3_1b_it:
+    model_id: google/gemma-3-1b-it
+    family: gemma3
+    size_label: 1B
+    tensor_parallel_size: 1
+    dtype: bfloat16
+    gpu_memory_utilization: 0.90
+    max_model_len: 8192
+    trust_remote_code: false
+    requires_hf_terms: true
+  qwen3_06b:
+    model_id: Qwen/Qwen3-0.6B
+    family: qwen3
+    size_label: 0.6B
+    tensor_parallel_size: 1
+    dtype: bfloat16
+    gpu_memory_utilization: 0.90
+    max_model_len: 8192
+    trust_remote_code: false
+    requires_hf_terms: false
