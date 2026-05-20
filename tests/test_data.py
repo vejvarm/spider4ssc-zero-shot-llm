@@ -228,12 +228,11 @@ def test_ensure_dataset_honors_non_test_split_layout(tmp_path):
     assert (output / "database").is_dir()
 
 
-def test_verify_sha256_requires_expected_value(tmp_path):
+def test_verify_sha256_allows_missing_expected_value(tmp_path):
     archive_path = tmp_path / "Spider4SSC.tgz"
     archive_path.write_text("archive", encoding="utf-8")
 
-    with pytest.raises(ValueError, match="archive_sha256 is required"):
-        _verify_sha256(archive_path, None)
+    _verify_sha256(archive_path, None)
 
 
 def test_verify_sha256_rejects_mismatch(tmp_path):
@@ -244,19 +243,24 @@ def test_verify_sha256_rejects_mismatch(tmp_path):
         _verify_sha256(archive_path, "0" * 64)
 
 
-def test_ensure_dataset_download_requires_checksum_before_network(tmp_path, monkeypatch):
-    def fail_download(url: str, output_path: Path) -> None:
-        raise AssertionError("download should not start without archive_sha256")
+def test_ensure_dataset_download_accepts_missing_checksum(tmp_path, monkeypatch):
+    archive_path = _make_dataset_archive(tmp_path)
 
-    monkeypatch.setattr("spider4ssc_zeroshot.data._download_file", fail_download)
+    def fake_download(url: str, output_path: Path) -> None:
+        shutil.copyfile(archive_path, output_path)
 
-    with pytest.raises(ValueError, match="archive_sha256 is required"):
-        ensure_dataset(
-            tmp_path / "Spider4SSC",
-            source=None,
-            url="https://example.org/Spider4SSC.tgz",
-            archive_sha256=None,
-        )
+    monkeypatch.setattr("spider4ssc_zeroshot.data._download_file", fake_download)
+
+    output = tmp_path / "Spider4SSC"
+    ensure_dataset(
+        output,
+        source=None,
+        url="https://example.org/Spider4SSC.tgz",
+        archive_sha256=None,
+    )
+
+    assert (output / "test.json").read_text(encoding="utf-8") == "[]"
+    assert (output / "database_test" / ".gitkeep").exists()
 
 
 def test_ensure_dataset_download_accepts_matching_checksum(tmp_path, monkeypatch):
