@@ -1,7 +1,7 @@
 .PHONY: venv install install-gpu test lint prepare-data report
 
 PYTHON ?= python3.11
-DATA_SOURCE ?= data/Spider4SSC-source
+DATA_SOURCE ?= /home/vejvar-martin-nj/git/uT5-ssc/data/Spider4SSC
 
 venv:
 	$(PYTHON) -m venv .venv

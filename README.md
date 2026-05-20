@@ -1,21 +1,127 @@
 # Spider4SSC Zero-Shot LLM Baselines
 
-Initial scaffold for the reproducibility package. The full protocol is added after the CLI, vLLM scripts, and datastore commands are implemented.
+This repository reproduces zero-shot instruction-LLM baselines for Spider4SSC in
+SQL, SPARQL, and Cypher.
 
-## Data Source
+The experiment is an external modern-model sanity check for the uT5 Spider4SSC
+journal paper. It is not a controlled pretraining-bias experiment because the
+tested instruction models have unknown pretraining and instruction-tuning
+exposure.
 
-`configs/experiment.yaml` contains the public Spider4SSC archive URL used by the companion training repository's dataset loader. The query string is part of the public Dropbox download link, not a private credential. For release artifacts, record the downloaded archive and extracted files in `data/Spider4SSC.manifest.json`.
+## Main Matrix
 
-## Local API Keys
+| Run id | Model |
+| --- | --- |
+| `qwen3_4b_instruct_2507` | `Qwen/Qwen3-4B-Instruct-2507` |
+| `qwen3_30b_a3b_instruct_2507` | `Qwen/Qwen3-30B-A3B-Instruct-2507` |
+| `gemma3_4b_it` | `google/gemma-3-4b-it` |
+| `gemma3_27b_it` | `google/gemma-3-27b-it` |
 
-The OpenAI-compatible vLLM API key is read from `VLLM_API_KEY`, as configured by `endpoint.api_key_env` in `configs/experiment.yaml`. Local vLLM accepts a dummy value when the server was started with the same key, but credentials are not committed to this repository.
+Gemma models require accepting Google's Gemma terms on Hugging Face before
+downloading.
 
-Spider4SSC can be copied from a local source tree with `spider4ssc-zeroshot prepare-data --source ...`. Remote archive downloads verify `dataset.archive_sha256` when it is provided; release runs should set it after recording the exact downloaded archive.
+## Setup
 
-## Reproducible Resolver Workflow
+```bash
+python3.11 -m venv .venv
+. .venv/bin/activate
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install -r requirements-dev.txt -r requirements-gpu.txt
+```
 
-Direct dependencies are pinned in `pyproject.toml`. After implementation, release artifacts should include the environment generated with `python -m pip freeze > requirements-lock.txt` from the validated Python 3.11 environment.
+## Prepare Data
 
-## Source Checkout Assumption
+From an existing local Spider4SSC checkout:
 
-The default commands are intended to run from the repository root so that `configs/` and `prompts/` are available as source-tree files. Release packages should either include these files as package resources or require explicit `--config` and prompt paths.
+```bash
+spider4ssc-zeroshot prepare-data \
+  --source /home/vejvar-martin-nj/git/uT5-ssc/data/Spider4SSC \
+  --output data/Spider4SSC
+```
+
+The command writes `data/Spider4SSC.manifest.json` with file sizes and SHA-256
+hashes. Remote archive downloads verify `dataset.archive_sha256` when it is
+provided; release runs should set it after recording the exact downloaded
+archive.
+
+## Start Datastores
+
+```bash
+docker compose -f docker/compose.datastores.yml down -v
+docker compose -f docker/compose.datastores.yml up -d
+```
+
+Load SPARQL and Cypher graph data:
+
+```bash
+PYTHONPATH=src python -m spider4ssc_zeroshot.vendor.ut5_ssc.seq2seq.serve_rdf4j_graphs \
+  data/Spider4SSC \
+  --split test
+
+NEO4J_DB_ROOT="$(pwd)/data/Spider4SSC" \
+NEO4J_DB_SUBFOLDER=database_test \
+NEO4J_DOCKER_CONTAINER=neo4j_server \
+PYTHONPATH=src python -m spider4ssc_zeroshot.vendor.ut5_ssc.seq2seq.serve_neo4j_graphs \
+  data/Spider4SSC \
+  --split test \
+  --neo4j-root "$(pwd)/data/Spider4SSC"
+```
+
+The SQL evaluator reads SQLite files directly from `data/Spider4SSC/database_test`.
+
+## Serve One Model
+
+The OpenAI-compatible vLLM API key is read from `VLLM_API_KEY`. Local vLLM
+accepts a dummy value when the server was started with the same key.
+
+```bash
+. .venv/bin/activate
+export VLLM_API_KEY="${VLLM_API_KEY:-token-abc123}"
+scripts/serve_vllm.sh qwen3_4b_instruct_2507 main
+```
+
+In another terminal:
+
+```bash
+. .venv/bin/activate
+python scripts/wait_for_vllm.py
+```
+
+## Smoke Run
+
+Use a limit only for pipeline verification. Do not edit prompts after seeing
+test predictions.
+
+```bash
+spider4ssc-zeroshot generate qwen3_4b_instruct_2507 sql --limit 5
+spider4ssc-zeroshot evaluate qwen3_4b_instruct_2507 sql
+spider4ssc-zeroshot report --runs-dir runs/test --output-dir reports
+```
+
+## Full Matrix
+
+Run one model server at a time:
+
+```bash
+scripts/run_matrix.sh main
+```
+
+Outputs:
+
+```text
+runs/test/<run_id>/<language>/predictions.jsonl
+runs/test/<run_id>/<language>/scores.json
+reports/test_main_matrix.csv
+reports/test_main_matrix.md
+reports/test_main_matrix.tex
+```
+
+## Reproducibility Rules
+
+- Use the prompts in `prompts/` unchanged for reported runs.
+- Use `temperature: 0.0`, `top_p: 1.0`, and `max_completion_tokens: 2048`.
+- Record raw completions and postprocessed predictions.
+- Record the Hugging Face model revision in every prediction row.
+- Report SQL, SPARQL, and Cypher test execution accuracy for every model.
+- Treat SPARQL and Cypher test-set evaluation as cross-language denotation
+  comparison against gold SQL, using paired Spider4SSC stores.
