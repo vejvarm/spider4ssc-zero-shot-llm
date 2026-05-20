@@ -11,6 +11,12 @@ from openai import APIConnectionError, APITimeoutError, OpenAI
 T = TypeVar("T")
 
 
+def _decoding_value(decoding: Any, key: str) -> Any:
+    if isinstance(decoding, dict):
+        return decoding[key]
+    return getattr(decoding, key)
+
+
 @dataclass(frozen=True)
 class VllmClientConfig:
     base_url: str = "http://localhost:8000/v1"
@@ -55,10 +61,10 @@ class VllmClient:
             lambda: self._client.chat.completions.create(
                 model=model_id,
                 messages=[{"role": "user", "content": prompt}],
-                temperature=decoding.temperature,
-                top_p=decoding.top_p,
-                max_tokens=decoding.max_completion_tokens,
-                stop=decoding.stop,
+                temperature=_decoding_value(decoding, "temperature"),
+                top_p=_decoding_value(decoding, "top_p"),
+                max_tokens=_decoding_value(decoding, "max_completion_tokens"),
+                stop=_decoding_value(decoding, "stop"),
             )
         )
         choice = completion.choices[0]
@@ -68,9 +74,9 @@ class VllmClient:
             "raw_completion": choice.message.content or "",
             "finish_reason": choice.finish_reason,
             "usage": {
-                "prompt_tokens": usage.prompt_tokens if usage else None,
-                "completion_tokens": usage.completion_tokens if usage else None,
-                "total_tokens": usage.total_tokens if usage else None,
+                "prompt_tokens": usage.prompt_tokens if usage else 0,
+                "completion_tokens": usage.completion_tokens if usage else 0,
+                "total_tokens": usage.total_tokens if usage else 0,
             },
             "model_revision": resolve_model_revision(model_id),
         }
