@@ -106,6 +106,14 @@ def test_prompt_files_must_match_selected_languages():
         ExperimentConfig(**payload)
 
 
+def test_duplicate_languages_are_rejected():
+    payload = _valid_experiment_payload()
+    payload["experiment"]["languages"] = ["sql", "sql"]
+
+    with pytest.raises(ValueError, match="Duplicate languages"):
+        ExperimentConfig(**payload)
+
+
 def test_invalid_decode_and_endpoint_bounds_are_rejected():
     with pytest.raises(ValueError):
         DecodingConfig(top_p=0)
@@ -113,6 +121,37 @@ def test_invalid_decode_and_endpoint_bounds_are_rejected():
         DecodingConfig(max_completion_tokens=0)
     with pytest.raises(ValueError):
         EndpointConfig(request_timeout_seconds=0)
+
+
+def test_strict_scalars_reject_quoted_values():
+    with pytest.raises(ValueError):
+        DecodingConfig(top_p="0.5")
+    with pytest.raises(ValueError):
+        EndpointConfig(request_timeout_seconds="30")
+    with pytest.raises(ValueError):
+        ModelConfig(
+            model_id="fake/model",
+            family="fake",
+            size_label="fake",
+            tensor_parallel_size="2",
+            dtype="bfloat16",
+            gpu_memory_utilization=0.9,
+            max_model_len=8192,
+            trust_remote_code=False,
+            requires_hf_terms=False,
+        )
+    with pytest.raises(ValueError):
+        ModelConfig(
+            model_id="fake/model",
+            family="fake",
+            size_label="fake",
+            tensor_parallel_size=1,
+            dtype="bfloat16",
+            gpu_memory_utilization=0.9,
+            max_model_len=8192,
+            trust_remote_code="false",
+            requires_hf_terms=False,
+        )
 
 
 def test_invalid_model_dtype_is_rejected():

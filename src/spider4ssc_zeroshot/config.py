@@ -4,7 +4,16 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictBool,
+    StrictFloat,
+    StrictInt,
+    field_validator,
+    model_validator,
+)
 
 DType = Literal["auto", "half", "float16", "bfloat16", "float", "float32"]
 Language = Literal["sql", "sparql", "cypher"]
@@ -18,12 +27,12 @@ class ModelConfig(StrictBaseModel):
     model_id: str
     family: str
     size_label: str
-    tensor_parallel_size: int = Field(ge=1)
+    tensor_parallel_size: StrictInt = Field(ge=1)
     dtype: DType
-    gpu_memory_utilization: float = Field(gt=0.0, le=1.0)
-    max_model_len: int = Field(ge=1024)
-    trust_remote_code: bool
-    requires_hf_terms: bool
+    gpu_memory_utilization: StrictFloat = Field(gt=0.0, le=1.0)
+    max_model_len: StrictInt = Field(ge=1024)
+    trust_remote_code: StrictBool
+    requires_hf_terms: StrictBool
 
 
 class DatasetConfig(StrictBaseModel):
@@ -56,32 +65,34 @@ class ExperimentSettings(StrictBaseModel):
 
     @model_validator(mode="after")
     def validate_prompt_files(self) -> ExperimentSettings:
+        if len(set(self.languages)) != len(self.languages):
+            raise ValueError("Duplicate languages are not allowed")
         if set(self.prompt_files) != set(self.languages):
             raise ValueError("Prompt files must match selected languages")
         return self
 
 
 class DecodingConfig(StrictBaseModel):
-    temperature: float = Field(default=0.0, ge=0.0)
-    top_p: float = Field(default=1.0, gt=0.0, le=1.0)
-    max_completion_tokens: int = Field(default=2048, ge=1)
+    temperature: StrictFloat = Field(default=0.0, ge=0.0)
+    top_p: StrictFloat = Field(default=1.0, gt=0.0, le=1.0)
+    max_completion_tokens: StrictInt = Field(default=2048, ge=1)
     stop: list[str] = Field(default_factory=lambda: ["```"])
 
 
 class EndpointConfig(StrictBaseModel):
     base_url: str = "http://localhost:8000/v1"
     api_key_env: str = "VLLM_API_KEY"
-    readiness_timeout_seconds: int = Field(default=1800, ge=1)
-    request_timeout_seconds: int = Field(default=180, ge=1)
-    max_retries: int = Field(default=5, ge=0)
-    retry_sleep_seconds: int = Field(default=5, ge=0)
+    readiness_timeout_seconds: StrictInt = Field(default=1800, ge=1)
+    request_timeout_seconds: StrictInt = Field(default=180, ge=1)
+    max_retries: StrictInt = Field(default=5, ge=0)
+    retry_sleep_seconds: StrictInt = Field(default=5, ge=0)
 
 
 class ReproducibilityConfig(StrictBaseModel):
-    forbid_prompt_change_after_full_run: bool
-    record_full_prompt: bool
-    record_raw_completion: bool
-    record_model_revision: bool
+    forbid_prompt_change_after_full_run: StrictBool
+    record_full_prompt: StrictBool
+    record_raw_completion: StrictBool
+    record_model_revision: StrictBool
 
 
 class ExperimentConfig(StrictBaseModel):
