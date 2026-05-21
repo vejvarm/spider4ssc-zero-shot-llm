@@ -56,6 +56,105 @@ def _normalize_cypher_schema(schema: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
+def _uri_local_name(value: str) -> str:
+    return value.rsplit("#", 1)[-1].rsplit("/", 1)[-1]
+
+
+def _namespace(value: str) -> str:
+    if "#" in value:
+        return value.rsplit("#", 1)[0] + "#"
+    return value.rsplit("/", 1)[0] + "/"
+
+
+def _prefix_for_namespace(prefixes: dict[str, str], namespace: str) -> str:
+    for prefix, uri in prefixes.items():
+        if uri == namespace:
+            return prefix or "ROOT"
+    return _uri_local_name(namespace.rstrip("#/")) or "ROOT"
+
+
+def _cypher_class_label(class_uri: str, prefixes: dict[str, str]) -> str:
+    root_prefix = _prefix_for_namespace(prefixes, _namespace(class_uri))
+    return f"{root_prefix}__{_uri_local_name(class_uri)}"
+
+
+def _cypher_property_name(property_uri: str, prefixes: dict[str, str]) -> str:
+    prefix = _prefix_for_namespace(prefixes, _namespace(property_uri))
+    return f"{prefix}__{_uri_local_name(property_uri)}"
+
+
+def _cypher_type(value: str) -> str:
+    normalized = value.lower()
+    if normalized in {"string", "str", "text"}:
+        return "String"
+    if normalized in {"integer", "int", "long"}:
+        return "Integer"
+    if normalized in {"float", "double", "decimal", "number", "numeric", "real"}:
+        return "Float"
+    if normalized in {"boolean", "bool"}:
+        return "Boolean"
+    if normalized in {"date", "time", "datetime", "year"}:
+        return "DateTime"
+    return _uri_local_name(value)
+
+
+def _load_rdf_schema_file(db_root: Path, db_id: str) -> dict[str, Any] | None:
+    schema_path = db_root / db_id / f"{db_id}.rdf-schema.json"
+    if not schema_path.exists():
+        return None
+    return json.loads(schema_path.read_text(encoding="utf-8"))
+
+
+def _cypher_schema_from_rdf_schema(rdf_schema: dict[str, Any]) -> dict[str, Any]:
+    prefixes = rdf_schema.get("Prefixes", {})
+    classes = [str(class_uri) for class_uri in rdf_schema.get("Classes", [])]
+    class_labels = {
+        class_uri: _cypher_class_label(class_uri, prefixes) for class_uri in classes
+    }
+    node_properties: dict[str, list[dict[str, Any]]] = {
+        label: [] for label in class_labels.values()
+    }
+    relationships: list[dict[str, Any]] = []
+    relationship_labels: list[str] = []
+
+    for property_uri, metadata in rdf_schema.get("Properties", {}).items():
+        if not isinstance(metadata, dict):
+            continue
+        property_name = _cypher_property_name(str(property_uri), prefixes)
+        for domain in _as_list(metadata.get("domain")):
+            domain_uri = str(domain)
+            domain_label = class_labels.get(domain_uri)
+            if domain_label is None:
+                continue
+            for range_value in _as_list(metadata.get("range")):
+                range_uri = str(range_value)
+                range_label = class_labels.get(range_uri)
+                if range_label is not None:
+                    relationships.append(
+                        {
+                            "startNodeLabels": [domain_label],
+                            "relationshipType": property_name,
+                            "endNodeLabels": [range_label],
+                        }
+                    )
+                    relationship_labels.append(property_name)
+                else:
+                    node_properties[domain_label].append(
+                        {
+                            "propertyName": property_name,
+                            "propertyTypes": [_cypher_type(range_uri)],
+                        }
+                    )
+
+    return {
+        "NodeLabels": list(class_labels.values()),
+        "NodeProperties": node_properties,
+        "RelationshipLabels": relationship_labels,
+        "Relationships": relationships,
+        "RelationshipProperties": {},
+    }
+
+
 def _db_root(dataset_root: Path, split: str) -> Path:
     return dataset_root / ("database_test" if split == "test" else "database")
 
@@ -79,6 +178,11 @@ def _load_cypher_schema(db_root: Path, db_id: str) -> dict[str, Any]:
     if schema_path.exists():
         schema = json.loads(schema_path.read_text(encoding="utf-8"))
         schema.setdefault("db_id", db_id)
+        return schema
+    rdf_schema = _load_rdf_schema_file(db_root, db_id)
+    if rdf_schema is not None:
+        schema = _cypher_schema_from_rdf_schema(rdf_schema)
+        schema["db_id"] = db_id
         return schema
     return Neo4jSchemaExtractor(db_root=db_root).dump_neo4j_schema(
         db=db_root / db_id / f"{db_id}.ttl",

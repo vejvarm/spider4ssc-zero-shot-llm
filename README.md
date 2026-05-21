@@ -111,6 +111,7 @@ Outputs:
 
 ```text
 runs/test/<run_id>/<language>/predictions.jsonl
+runs/test/<run_id>/<language>/metadata.json
 runs/test/<run_id>/<language>/scores.json
 reports/test_main_matrix.csv
 reports/test_main_matrix.md

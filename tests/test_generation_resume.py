@@ -35,7 +35,7 @@ def _read_jsonl(path: Path) -> list[dict]:
 
 
 def test_run_generation_skips_existing_rows_and_appends_missing(tmp_path: Path):
-    output_file = tmp_path / "predictions" / "sql.jsonl"
+    output_file = tmp_path / "predictions" / "predictions.jsonl"
     output_file.parent.mkdir()
     existing_row = {
         "example_id": 1,
@@ -49,8 +49,8 @@ def test_run_generation_skips_existing_rows_and_appends_missing(tmp_path: Path):
         "prediction": "SELECT 1",
         "finish_reason": "stop",
         "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
-        "model_id": "existing-model",
-        "model_revision": "old",
+        "model_id": "test-model",
+        "model_revision": "abc123",
         "created_at_utc": "2026-01-01T00:00:00Z",
     }
     output_file.write_text(json.dumps(existing_row) + "\n", encoding="utf-8")
@@ -111,6 +111,63 @@ def test_run_generation_skips_existing_rows_and_appends_missing(tmp_path: Path):
         "created_at_utc": rows[1]["created_at_utc"],
     }
     assert rows[1]["created_at_utc"].endswith("Z")
+    metadata = json.loads(
+        (output_file.parent / "metadata.json").read_text(encoding="utf-8")
+    )
+    assert metadata == {
+        "decoding": {
+            "max_completion_tokens": 2048,
+            "stop": ["```"],
+            "temperature": 0.0,
+            "top_p": 1.0,
+        },
+        "model_id": "test-model",
+        "model_revision": "abc123",
+        "n_completed": 2,
+        "n_generated": 1,
+        "n_requested": 2,
+        "n_skipped_existing": 1,
+        "prediction_file": "predictions.jsonl",
+        "updated_at_utc": metadata["updated_at_utc"],
+    }
+    assert metadata["updated_at_utc"].endswith("Z")
+
+
+def test_run_generation_rejects_existing_rows_from_other_model(tmp_path: Path):
+    output_file = tmp_path / "predictions" / "sql.jsonl"
+    output_file.parent.mkdir()
+    output_file.write_text(
+        json.dumps(
+            {
+                "example_id": 1,
+                "language": "sql",
+                "model_id": "other-model",
+                "model_revision": "old",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    requests = [
+        GenerationRequest(
+            example_id=1,
+            split="test",
+            language="sql",
+            db_id="tiny_school",
+            question="Existing question?",
+            gold_sql="SELECT 1",
+            prompt="existing prompt",
+        ),
+    ]
+
+    with pytest.raises(ValueError, match="Existing prediction row uses model_id other-model"):
+        run_generation(
+            requests=requests,
+            client=FakeCompletionClient(),
+            model_id="test-model",
+            decoding={"temperature": 0.0, "top_p": 1.0, "max_completion_tokens": 1, "stop": []},
+            output_file=output_file,
+        )
 
 
 class _Model:
