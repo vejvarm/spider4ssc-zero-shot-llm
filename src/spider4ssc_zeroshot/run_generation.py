@@ -17,6 +17,9 @@ class GenerationRequest:
     db_id: str
     question: str
     gold_sql: str
+    gold_query: str
+    schema_mode: str
+    schema_provenance: str
     prompt: str
 
 
@@ -43,6 +46,8 @@ def _validate_existing_rows(
     *,
     model_id: str,
     language: str | None,
+    split: str | None,
+    schema_mode: str | None,
 ) -> None:
     for row in rows:
         row_model_id = row.get("model_id")
@@ -53,6 +58,15 @@ def _validate_existing_rows(
         if language is not None and row.get("language") != language:
             raise ValueError(
                 f"Existing prediction row uses language {row.get('language')}, expected {language}"
+            )
+        if split is not None and row.get("split") != split:
+            raise ValueError(
+                f"Existing prediction row uses split {row.get('split')}, expected {split}"
+            )
+        if schema_mode is not None and row.get("schema_mode") != schema_mode:
+            raise ValueError(
+                "Existing prediction row uses schema_mode "
+                f"{row.get('schema_mode')}, expected {schema_mode}"
             )
 
 
@@ -65,6 +79,15 @@ def _decoding_metadata(decoding: Any) -> dict[str, Any]:
     if isinstance(decoding, dict):
         return {key: decoding[key] for key in keys if key in decoding}
     return {key: getattr(decoding, key) for key in keys if hasattr(decoding, key)}
+
+
+def _single_metadata_value(rows: list[dict[str, Any]], key: str) -> str:
+    values = sorted({str(row[key]) for row in rows if row.get(key) is not None})
+    if not values:
+        return "unknown"
+    if len(values) == 1:
+        return values[0]
+    return "mixed"
 
 
 def _write_metadata(
@@ -85,15 +108,28 @@ def _write_metadata(
             if row.get("model_revision")
         }
     )
+    model_revision = revisions[0] if len(revisions) == 1 else "mixed"
+    if not revisions:
+        model_revision = "unknown"
     metadata = {
         "decoding": _decoding_metadata(decoding),
+        "language": _single_metadata_value(rows, "language"),
         "model_id": model_id,
-        "model_revision": revisions[0] if len(revisions) == 1 else "mixed",
+        "model_revision": model_revision,
         "n_completed": len(rows),
         "n_generated": n_generated,
         "n_requested": n_requested,
         "n_skipped_existing": n_skipped_existing,
         "prediction_file": output_file.name,
+        "schema_mode": _single_metadata_value(rows, "schema_mode"),
+        "schema_provenance": sorted(
+            {
+                str(row["schema_provenance"])
+                for row in rows
+                if row.get("schema_provenance") is not None
+            }
+        ),
+        "split": _single_metadata_value(rows, "split"),
         "updated_at_utc": _created_at_utc(),
     }
     metadata_file.write_text(
@@ -111,7 +147,15 @@ def run_generation(
 ) -> None:
     existing_rows = _load_existing_rows(output_file)
     expected_language = requests[0].language if requests else None
-    _validate_existing_rows(existing_rows, model_id=model_id, language=expected_language)
+    expected_split = requests[0].split if requests else None
+    expected_schema_mode = requests[0].schema_mode if requests else None
+    _validate_existing_rows(
+        existing_rows,
+        model_id=model_id,
+        language=expected_language,
+        split=expected_split,
+        schema_mode=expected_schema_mode,
+    )
     completed_ids = {row["example_id"] for row in existing_rows}
     generated_rows: list[dict[str, Any]] = []
     n_skipped_existing = 0

@@ -27,7 +27,8 @@ def _valid_experiment_payload() -> dict:
             "schema_serialization": "compact",
             "languages": ["sql"],
             "prompt_files": {"sql": "prompts/sql_zero_shot.txt"},
-            "output_root": "runs/test",
+            "schema_mode": "strict",
+            "output_root": "runs",
             "report_dir": "reports",
         },
         "decoding": {},
@@ -55,6 +56,8 @@ def test_load_experiment_config_reads_fixed_languages():
     assert config.dataset.split == "test"
     assert config.experiment.languages == ["sql", "sparql", "cypher"]
     assert config.experiment.schema_serialization == "compact"
+    assert config.experiment.schema_mode == "strict"
+    assert config.experiment.output_root == Path("runs")
     assert config.decoding.temperature == 0.0
     assert config.decoding.max_completion_tokens == 2048
     assert config.endpoint.api_key_env == "VLLM_API_KEY"
@@ -76,7 +79,7 @@ def test_invalid_language_is_rejected():
                 "schema_serialization": "compact",
                 "languages": ["sql", "gremlin"],
                 "prompt_files": {"sql": "prompts/sql_zero_shot.txt"},
-                "output_root": "runs/test",
+                "output_root": "runs",
                 "report_dir": "reports",
             },
             decoding=DecodingConfig(),

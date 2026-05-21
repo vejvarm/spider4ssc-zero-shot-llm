@@ -82,6 +82,7 @@ def test_normalize_examples_sets_target_language():
     normalized = normalize_examples_for_language(examples, "sparql")
 
     assert normalized[0]["language"] == "sparql"
+    assert normalized[0]["gold_query"] == ""
     assert normalized[0]["query"] == ""
     assert normalized[0]["sql"] == "SELECT count(*) FROM student"
 

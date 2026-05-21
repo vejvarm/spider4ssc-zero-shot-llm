@@ -3,7 +3,10 @@ import sqlite3
 
 import pytest
 
-from spider4ssc_zeroshot.schema_serialization import serialize_example_schema
+from spider4ssc_zeroshot.schema_serialization import (
+    schema_provenance_for_example,
+    serialize_example_schema,
+)
 
 
 def _example() -> dict[str, str]:
@@ -108,11 +111,62 @@ def test_serialize_cypher_schema_from_rdf_schema_without_neo4j(tmp_path, monkeyp
         encoding="utf-8",
     )
 
-    serialized = serialize_example_schema(tmp_path, _example(), "cypher")
+    serialized = serialize_example_schema(
+        tmp_path,
+        _example(),
+        "cypher",
+        schema_mode="fallback",
+    )
 
     assert serialized == (
         " | tiny_school | ROOT__Student: Student__name (String) , "
         "Student__CLASS_ID (ROOT__Class) | ROOT__Class: "
+    )
+
+
+def test_strict_cypher_schema_requires_cached_neo4j_schema(tmp_path):
+    db_dir = tmp_path / "database_test" / "tiny_school"
+    db_dir.mkdir(parents=True)
+    (db_dir / "tiny_school.rdf-schema.json").write_text(
+        json.dumps({"Classes": [], "Properties": {}}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(FileNotFoundError, match="Strict Cypher schema mode"):
+        serialize_example_schema(tmp_path, _example(), "cypher", schema_mode="strict")
+
+
+def test_schema_provenance_labels_strict_and_fallback_cypher(tmp_path):
+    db_dir = tmp_path / "database_test" / "tiny_school"
+    db_dir.mkdir(parents=True)
+    (db_dir / "tiny_school.rdf-schema.json").write_text(
+        json.dumps({"Classes": [], "Properties": {}}),
+        encoding="utf-8",
+    )
+
+    assert (
+        schema_provenance_for_example(
+            tmp_path,
+            _example(),
+            "cypher",
+            schema_mode="fallback",
+        )
+        == "rdf-schema-fallback"
+    )
+
+    (db_dir / "tiny_school.neo4j-schema.json").write_text(
+        json.dumps({"NodeLabels": [], "NodeProperties": {}, "Relationships": []}),
+        encoding="utf-8",
+    )
+
+    assert (
+        schema_provenance_for_example(
+            tmp_path,
+            _example(),
+            "cypher",
+            schema_mode="strict",
+        )
+        == "neo4j-schema-json"
     )
 
 

@@ -9,7 +9,9 @@ LANGUAGE_ORDER = ["sql", "sparql", "cypher"]
 REPORT_COLUMNS = [
     "run_id",
     "model_id",
+    "split",
     "language",
+    "schema_mode",
     "execution_accuracy",
     "n_examples",
     "n_empty_predictions",
@@ -84,22 +86,22 @@ def _to_latex(frame: pd.DataFrame) -> str:
     return "\n".join(lines) + "\n"
 
 
-def write_reports(frame: pd.DataFrame, output_dir: Path) -> None:
+def write_reports(frame: pd.DataFrame, output_dir: Path, *, split: str = "test") -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     matrix = _main_matrix(frame)
-    matrix.to_csv(output_dir / "test_main_matrix.csv", index=False)
-    (output_dir / "test_main_matrix.md").write_text(
+    matrix.to_csv(output_dir / f"{split}_main_matrix.csv", index=False)
+    (output_dir / f"{split}_main_matrix.md").write_text(
         _to_markdown(matrix),
         encoding="utf-8",
     )
-    (output_dir / "test_main_matrix.tex").write_text(
+    (output_dir / f"{split}_main_matrix.tex").write_text(
         _to_latex(matrix),
         encoding="utf-8",
     )
 
     if "n_empty_predictions" in frame.columns:
-        failures = matrix[frame["n_empty_predictions"] > 0]
+        failures = matrix[matrix["n_empty_predictions"] > 0]
     else:
         failures = matrix.iloc[0:0]
-    failures.to_csv(output_dir / "test_main_matrix_failures.csv", index=False)
+    failures.to_csv(output_dir / f"{split}_main_matrix_failures.csv", index=False)

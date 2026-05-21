@@ -12,6 +12,7 @@ from pathlib import Path
 import requests
 
 SUPPORTED_LANGUAGES = {"sql", "sparql", "cypher"}
+SUPPORTED_SPLITS = {"test", "dev"}
 
 
 @dataclass(frozen=True)
@@ -32,9 +33,35 @@ def required_dataset_paths(
     test_file: str = "test.json",
     test_db_dir: str = "database_test",
 ) -> list[Path]:
-    if split != "test":
-        return [root / f"{split}.json", root / "database"]
-    return [root / test_file, root / test_db_dir]
+    return [
+        split_file_path(root, split, test_file=test_file),
+        split_db_root(root, split, test_db_dir=test_db_dir),
+    ]
+
+
+def validate_split(split: str) -> str:
+    if split not in SUPPORTED_SPLITS:
+        supported = ", ".join(sorted(SUPPORTED_SPLITS))
+        raise ValueError(f"Unsupported split: {split}. Supported splits: {supported}")
+    return split
+
+
+def split_file_name(split: str, *, test_file: str = "test.json") -> str:
+    validate_split(split)
+    return test_file if split == "test" else f"{split}.json"
+
+
+def split_db_dir_name(split: str, *, test_db_dir: str = "database_test") -> str:
+    validate_split(split)
+    return test_db_dir if split == "test" else "database"
+
+
+def split_file_path(root: Path, split: str, *, test_file: str = "test.json") -> Path:
+    return root / split_file_name(split, test_file=test_file)
+
+
+def split_db_root(root: Path, split: str, *, test_db_dir: str = "database_test") -> Path:
+    return root / split_db_dir_name(split, test_db_dir=test_db_dir)
 
 
 def _expected_path_types(
@@ -44,9 +71,10 @@ def _expected_path_types(
     test_file: str = "test.json",
     test_db_dir: str = "database_test",
 ) -> list[tuple[Path, str]]:
-    if split != "test":
-        return [(root / f"{split}.json", "file"), (root / "database", "directory")]
-    return [(root / test_file, "file"), (root / test_db_dir, "directory")]
+    return [
+        (split_file_path(root, split, test_file=test_file), "file"),
+        (split_db_root(root, split, test_db_dir=test_db_dir), "directory"),
+    ]
 
 
 def _invalid_required_paths(
@@ -258,8 +286,9 @@ def load_split(
     split: str,
     *,
     split_file: str | Path | None = None,
+    test_file: str = "test.json",
 ) -> list[SpiderExample]:
-    split_path = root / (split_file or f"{split}.json")
+    split_path = root / (split_file or split_file_name(split, test_file=test_file))
     with split_path.open("r", encoding="utf-8") as handle:
         rows = json.load(handle)
     if not isinstance(rows, list):
@@ -301,6 +330,7 @@ def normalize_examples_for_language(examples: list[SpiderExample], language: str
                 "db_id": example.db_id,
                 "question": example.question,
                 "sql": example.gold_sql,
+                "gold_query": language_gold,
                 "query": language_gold,
             }
         )

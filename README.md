@@ -51,7 +51,8 @@ docker compose -f docker/compose.datastores.yml down -v
 docker compose -f docker/compose.datastores.yml up -d
 ```
 
-Load SPARQL and Cypher graph data:
+Load the graph stores for the split you are evaluating. The test split uses
+`database_test`; the dev split uses `database`.
 
 ```bash
 PYTHONPATH=src python -m spider4ssc_zeroshot.vendor.ut5_ssc.seq2seq.serve_rdf4j_graphs \
@@ -59,16 +60,43 @@ PYTHONPATH=src python -m spider4ssc_zeroshot.vendor.ut5_ssc.seq2seq.serve_rdf4j_
   --split test \
   --db-subfolder database_test
 
-NEO4J_DB_ROOT="$(pwd)/data/Spider4SSC" \
+NEO4J_HOST_DB_ROOT="$(pwd)/data/Spider4SSC" \
 NEO4J_DB_SUBFOLDER=database_test \
+NEO4J_IMPORT_SUBFOLDER=import/Spider4SSC/database_test \
 NEO4J_DOCKER_CONTAINER=neo4j_server \
 PYTHONPATH=src python -m spider4ssc_zeroshot.vendor.ut5_ssc.seq2seq.serve_neo4j_graphs \
   data/Spider4SSC \
   --split test \
-  --neo4j-root "$(pwd)/data/Spider4SSC"
+  --neo4j-root "$(pwd)/docker/neo4j-root" \
+  --db-subfolder database_test \
+  --import-subfolder import/Spider4SSC/database_test
 ```
 
-The SQL evaluator reads SQLite files directly from `data/Spider4SSC/database_test`.
+For dev, replace `--split test`, `database_test`, and
+`import/Spider4SSC/database_test` with `--split dev`, `database`, and
+`import/Spider4SSC/database`. The SQL evaluator reads SQLite files directly from
+the configured split database folder.
+
+## Validate Pipeline
+
+Reported paper-facing runs use strict schema mode. Strict Cypher serialization
+requires cached `<db_id>.neo4j-schema.json` files from the Neo4j datastore, not
+RDF-derived fallback schemas.
+
+```bash
+spider4ssc-zeroshot validate-pipeline --split test --schema-mode strict
+spider4ssc-zeroshot validate-pipeline --split dev --schema-mode strict
+```
+
+If strict validation reports missing Neo4j schema JSON, load the relevant split
+into Neo4j and extract schemas:
+
+```bash
+spider4ssc-zeroshot extract-neo4j-schemas \
+  --split test \
+  --neo4j-root docker/neo4j-root \
+  --import-subfolder import/Spider4SSC/database_test
+```
 
 ## Serve One Model
 
@@ -88,15 +116,42 @@ In another terminal:
 python scripts/wait_for_vllm.py --expected-model Qwen/Qwen3-4B-Instruct-2507
 ```
 
-## Smoke Run
+## Strict Test Workflow
 
-Use a limit only for pipeline verification. Do not edit prompts after seeing
-test predictions.
+Use strict mode for reviewer-facing test results. Do not edit prompts after
+seeing test predictions.
 
 ```bash
-spider4ssc-zeroshot generate qwen3_4b_instruct_2507 sql --limit 5
-spider4ssc-zeroshot evaluate qwen3_4b_instruct_2507 sql
-spider4ssc-zeroshot report --runs-dir runs/test --output-dir reports
+spider4ssc-zeroshot generate qwen3_4b_instruct_2507 sql --split test --schema-mode strict
+spider4ssc-zeroshot evaluate qwen3_4b_instruct_2507 sql --split test --schema-mode strict
+spider4ssc-zeroshot report --split test --runs-dir runs/test --output-dir reports
+```
+
+## Dev Workflow
+
+The dev split has native SQL, SPARQL, and Cypher gold queries, so it is useful
+for debugging model behavior before spending time on the test matrix.
+
+```bash
+spider4ssc-zeroshot generate qwen3_4b_instruct_2507 sparql --split dev --schema-mode strict
+spider4ssc-zeroshot evaluate qwen3_4b_instruct_2507 sparql --split dev --schema-mode strict
+spider4ssc-zeroshot report --split dev --runs-dir runs/dev --output-dir reports
+```
+
+## Fallback Smoke Run
+
+Fallback mode allows Cypher schema serialization from cached RDF schemas when
+Neo4j schema JSON is not ready. It is only for smoke/debug runs and must not be
+mixed with strict results.
+
+```bash
+spider4ssc-zeroshot generate qwen3_4b_instruct_2507 cypher \
+  --split test \
+  --schema-mode fallback \
+  --limit 5
+spider4ssc-zeroshot evaluate qwen3_4b_instruct_2507 cypher \
+  --split test \
+  --schema-mode fallback
 ```
 
 ## Full Matrix
@@ -104,7 +159,8 @@ spider4ssc-zeroshot report --runs-dir runs/test --output-dir reports
 Run one model server at a time:
 
 ```bash
-scripts/run_matrix.sh main
+scripts/run_matrix.sh main test
+scripts/run_matrix.sh main dev
 ```
 
 Outputs:
@@ -124,6 +180,11 @@ reports/test_main_matrix.tex
 - Use `temperature: 0.0`, `top_p: 1.0`, and `max_completion_tokens: 2048`.
 - Record raw completions and postprocessed predictions.
 - Record the Hugging Face model revision in every prediction row.
-- Report SQL, SPARQL, and Cypher test execution accuracy for every model.
+- Record `split`, `schema_mode`, `gold_query`, and schema provenance in every
+  prediction row.
+- Report SQL, SPARQL, and Cypher test execution accuracy for every model using
+  `schema_mode=strict`.
 - Treat SPARQL and Cypher test-set evaluation as cross-language denotation
   comparison against gold SQL, using paired Spider4SSC stores.
+- Treat dev-set SPARQL and Cypher evaluation as native-language execution
+  against dev gold queries.

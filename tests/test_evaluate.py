@@ -15,8 +15,9 @@ def _write_jsonl(path: Path, rows: list[dict]) -> None:
     )
 
 
-def _create_sqlite_db(dataset_root: Path, db_id: str) -> None:
-    db_dir = dataset_root / "database_test" / db_id
+def _create_sqlite_db(dataset_root: Path, db_id: str, *, split: str = "test") -> None:
+    db_dir_name = "database_test" if split == "test" else "database"
+    db_dir = dataset_root / db_dir_name / db_id
     db_dir.mkdir(parents=True)
     connection = sqlite3.connect(db_dir / f"{db_id}.sqlite")
     connection.execute("CREATE TABLE singer (id INTEGER PRIMARY KEY, name TEXT)")
@@ -47,6 +48,7 @@ def test_evaluate_predictions_writes_scores_and_uses_metric(monkeypatch, tmp_pat
                 "language": "sql",
                 "db_id": "concert_singer",
                 "gold_sql": "SELECT count(*) FROM singer",
+                "gold_query": "SELECT count(*) FROM singer",
                 "prediction": "SELECT count(*) FROM singer",
                 "model_id": "model-a",
                 "model_revision": "rev-a",
@@ -56,6 +58,7 @@ def test_evaluate_predictions_writes_scores_and_uses_metric(monkeypatch, tmp_pat
                 "language": "sql",
                 "db_id": "concert_singer",
                 "gold_sql": "SELECT name FROM singer",
+                "gold_query": "SELECT name FROM singer",
                 "prediction": "  ",
                 "model_id": "model-a",
                 "model_revision": "rev-a",
@@ -131,6 +134,7 @@ def test_evaluate_predictions_writes_scores_and_uses_metric(monkeypatch, tmp_pat
         "split": "test",
         "language": "sql",
         "schema": "compact",
+        "schema_mode": "strict",
         "n_examples": 2,
         "execution_accuracy": 0.5,
         "n_execution_errors": 0,
@@ -155,6 +159,7 @@ def test_evaluate_predictions_does_not_write_vendored_metric_side_effect(
                 "language": "sql",
                 "db_id": "concert_singer",
                 "gold_sql": "SELECT count(*) FROM singer",
+                "gold_query": "SELECT count(*) FROM singer",
                 "prediction": "SELECT count(*) FROM singer",
                 "model_id": "model-a",
                 "model_revision": "rev-a",
@@ -191,7 +196,7 @@ def test_evaluate_predictions_rejects_empty_prediction_file(tmp_path: Path):
     assert not output_file.exists()
 
 
-def test_evaluate_predictions_uses_empty_query_for_cross_language(
+def test_evaluate_predictions_uses_sql_fallback_for_test_cross_language(
     monkeypatch,
     tmp_path: Path,
 ):
@@ -202,7 +207,10 @@ def test_evaluate_predictions_uses_empty_query_for_cross_language(
         [
             {
                 "db_id": "pets",
+                "split": "test",
+                "language": "sparql",
                 "gold_sql": "SELECT name FROM pets",
+                "gold_query": "",
                 "prediction": "SELECT ?name WHERE {}",
                 "model_id": "model-a",
                 "model_revision": "rev-a",
@@ -227,6 +235,52 @@ def test_evaluate_predictions_uses_empty_query_for_cross_language(
 
     assert references_seen[0]["query"] == ""
     assert references_seen[0]["sql"] == "SELECT name FROM pets"
+    assert references_seen[0]["db_path"] == str(dataset_root / "database_test")
+
+
+def test_evaluate_predictions_uses_native_dev_gold_for_cross_language(
+    monkeypatch,
+    tmp_path: Path,
+):
+    predictions_file = tmp_path / "predictions" / "sparql.jsonl"
+    dataset_root = tmp_path / "dataset"
+    _write_jsonl(
+        predictions_file,
+        [
+            {
+                "db_id": "pets",
+                "split": "dev",
+                "language": "sparql",
+                "gold_sql": "SELECT name FROM pets",
+                "gold_query": "SELECT ?name WHERE { ?pet <name> ?name }",
+                "prediction": "SELECT ?name WHERE { ?pet <name> ?name }",
+                "model_id": "model-a",
+                "model_revision": "rev-a",
+            }
+        ],
+    )
+    references_seen = []
+
+    def fake_metric(predictions, references, db_dir=None, lang=None):
+        references_seen.extend(references)
+        assert db_dir == str(dataset_root / "database")
+        return {"exec": 1}
+
+    monkeypatch.setattr(evaluate, "compute_sparql_test_suite_metric", fake_metric)
+
+    scores = evaluate.evaluate_predictions(
+        predictions_file=predictions_file,
+        dataset_root=dataset_root,
+        run_id="run-1",
+        language="sparql",
+        split="dev",
+        output_file=tmp_path / "scores.json",
+    )
+
+    assert references_seen[0]["query"] == "SELECT ?name WHERE { ?pet <name> ?name }"
+    assert references_seen[0]["sql"] == "SELECT name FROM pets"
+    assert references_seen[0]["db_path"] == str(dataset_root / "database")
+    assert scores["split"] == "dev"
 
 
 def test_evaluate_predictions_rejects_unsupported_language(tmp_path: Path):

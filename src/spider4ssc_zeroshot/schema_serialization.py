@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from spider4ssc_zeroshot.data import split_db_root
 from spider4ssc_zeroshot.vendor.ut5_ssc.seq2seq.utils.dataset import serialize_schema
 from spider4ssc_zeroshot.vendor.ut5_ssc.seq2seq.utils.neo4j_schema_extractor import (
     Neo4jSchemaExtractor,
@@ -155,8 +156,8 @@ def _cypher_schema_from_rdf_schema(rdf_schema: dict[str, Any]) -> dict[str, Any]
     }
 
 
-def _db_root(dataset_root: Path, split: str) -> Path:
-    return dataset_root / ("database_test" if split == "test" else "database")
+def _db_root(dataset_root: Path, split: str, test_db_dir: str = "database_test") -> Path:
+    return split_db_root(dataset_root, split, test_db_dir=test_db_dir)
 
 
 def _column_names(schema: dict[str, Any]) -> dict[str, list[Any]]:
@@ -173,12 +174,23 @@ def _foreign_keys(schema: dict[str, Any]) -> dict[str, list[int]]:
     }
 
 
-def _load_cypher_schema(db_root: Path, db_id: str) -> dict[str, Any]:
+def _load_cypher_schema(
+    db_root: Path,
+    db_id: str,
+    *,
+    schema_mode: str = "strict",
+) -> dict[str, Any]:
     schema_path = db_root / db_id / f"{db_id}.neo4j-schema.json"
     if schema_path.exists():
         schema = json.loads(schema_path.read_text(encoding="utf-8"))
         schema.setdefault("db_id", db_id)
         return schema
+    if schema_mode == "strict":
+        raise FileNotFoundError(
+            f"Strict Cypher schema mode requires generated Neo4j schema: {schema_path}"
+        )
+    if schema_mode != "fallback":
+        raise ValueError(f"Unsupported schema_mode: {schema_mode}")
     rdf_schema = _load_rdf_schema_file(db_root, db_id)
     if rdf_schema is not None:
         schema = _cypher_schema_from_rdf_schema(rdf_schema)
@@ -190,10 +202,49 @@ def _load_cypher_schema(db_root: Path, db_id: str) -> dict[str, Any]:
     )
 
 
-def serialize_example_schema(dataset_root: Path, example: dict[str, Any], language: str) -> str:
+def schema_provenance_for_example(
+    dataset_root: Path,
+    example: dict[str, Any],
+    language: str,
+    *,
+    schema_mode: str = "strict",
+    test_db_dir: str = "database_test",
+) -> str:
     split = example["split"]
     db_id = example["db_id"]
-    db_root = _db_root(dataset_root, split)
+    db_root = _db_root(dataset_root, split, test_db_dir=test_db_dir)
+
+    if language == "sql":
+        return "sqlite-schema-dump"
+    if language == "sparql":
+        schema_path = db_root / db_id / f"{db_id}.rdf-schema.json"
+        return "rdf-schema-json" if schema_path.exists() else "rdf-schema-from-ttl"
+    if language == "cypher":
+        schema_path = db_root / db_id / f"{db_id}.neo4j-schema.json"
+        if schema_path.exists():
+            return "neo4j-schema-json"
+        if schema_mode == "strict":
+            raise FileNotFoundError(
+                f"Strict Cypher schema mode requires generated Neo4j schema: {schema_path}"
+            )
+        rdf_schema_path = db_root / db_id / f"{db_id}.rdf-schema.json"
+        if rdf_schema_path.exists():
+            return "rdf-schema-fallback"
+        return "live-neo4j-schema-extraction"
+    raise ValueError(f"Unsupported language: {language}")
+
+
+def serialize_example_schema(
+    dataset_root: Path,
+    example: dict[str, Any],
+    language: str,
+    *,
+    schema_mode: str = "strict",
+    test_db_dir: str = "database_test",
+) -> str:
+    split = example["split"]
+    db_id = example["db_id"]
+    db_root = _db_root(dataset_root, split, test_db_dir=test_db_dir)
 
     if language == "sql":
         sqlite_path = db_root / db_id / f"{db_id}.sqlite"
@@ -233,7 +284,9 @@ def serialize_example_schema(dataset_root: Path, example: dict[str, Any], langua
             question=example["question"],
             db_path=str(db_root),
             db_id=db_id,
-            schema=_normalize_cypher_schema(_load_cypher_schema(db_root, db_id)),
+            schema=_normalize_cypher_schema(
+                _load_cypher_schema(db_root, db_id, schema_mode=schema_mode)
+            ),
             schema_serialization_type="compact",
             schema_serialization_randomized=False,
             schema_serialization_with_db_id=True,

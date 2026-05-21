@@ -44,6 +44,9 @@ def test_run_generation_skips_existing_rows_and_appends_missing(tmp_path: Path):
         "db_id": "tiny_school",
         "question": "Existing question?",
         "gold_sql": "SELECT 1",
+        "gold_query": "SELECT 1",
+        "schema_mode": "strict",
+        "schema_provenance": "sqlite-schema-dump",
         "prompt": "existing prompt",
         "raw_completion": "SELECT 1",
         "prediction": "SELECT 1",
@@ -62,6 +65,9 @@ def test_run_generation_skips_existing_rows_and_appends_missing(tmp_path: Path):
             db_id="tiny_school",
             question="Existing question?",
             gold_sql="SELECT 1",
+            gold_query="SELECT 1",
+            schema_mode="strict",
+            schema_provenance="sqlite-schema-dump",
             prompt="existing prompt",
         ),
         GenerationRequest(
@@ -71,6 +77,9 @@ def test_run_generation_skips_existing_rows_and_appends_missing(tmp_path: Path):
             db_id="tiny_school",
             question="How many students are there?",
             gold_sql="SELECT count(*) FROM student",
+            gold_query="SELECT count(*) FROM student",
+            schema_mode="strict",
+            schema_provenance="sqlite-schema-dump",
             prompt="missing prompt",
         ),
     ]
@@ -101,6 +110,9 @@ def test_run_generation_skips_existing_rows_and_appends_missing(tmp_path: Path):
         "db_id": "tiny_school",
         "question": "How many students are there?",
         "gold_sql": "SELECT count(*) FROM student",
+        "gold_query": "SELECT count(*) FROM student",
+        "schema_mode": "strict",
+        "schema_provenance": "sqlite-schema-dump",
         "prompt": "missing prompt",
         "raw_completion": "Here is the query:\n```sql\nSELECT COUNT(*) FROM student;\n```",
         "prediction": "SELECT COUNT(*) FROM student;",
@@ -128,6 +140,10 @@ def test_run_generation_skips_existing_rows_and_appends_missing(tmp_path: Path):
         "n_requested": 2,
         "n_skipped_existing": 1,
         "prediction_file": "predictions.jsonl",
+        "schema_mode": "strict",
+        "schema_provenance": ["sqlite-schema-dump"],
+        "split": "test",
+        "language": "sql",
         "updated_at_utc": metadata["updated_at_utc"],
     }
     assert metadata["updated_at_utc"].endswith("Z")
@@ -156,6 +172,9 @@ def test_run_generation_rejects_existing_rows_from_other_model(tmp_path: Path):
             db_id="tiny_school",
             question="Existing question?",
             gold_sql="SELECT 1",
+            gold_query="SELECT 1",
+            schema_mode="strict",
+            schema_provenance="sqlite-schema-dump",
             prompt="existing prompt",
         ),
     ]
@@ -166,6 +185,56 @@ def test_run_generation_rejects_existing_rows_from_other_model(tmp_path: Path):
             client=FakeCompletionClient(),
             model_id="test-model",
             decoding={"temperature": 0.0, "top_p": 1.0, "max_completion_tokens": 1, "stop": []},
+            output_file=output_file,
+        )
+
+
+def test_run_generation_rejects_existing_rows_from_other_schema_mode(tmp_path: Path):
+    output_file = tmp_path / "predictions" / "sql.jsonl"
+    output_file.parent.mkdir()
+    output_file.write_text(
+        json.dumps(
+            {
+                "example_id": 1,
+                "split": "test",
+                "language": "sql",
+                "schema_mode": "fallback",
+                "model_id": "test-model",
+                "model_revision": "old",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    requests = [
+        GenerationRequest(
+            example_id=1,
+            split="test",
+            language="sql",
+            db_id="tiny_school",
+            question="Existing question?",
+            gold_sql="SELECT 1",
+            gold_query="SELECT 1",
+            schema_mode="strict",
+            schema_provenance="sqlite-schema-dump",
+            prompt="existing prompt",
+        ),
+    ]
+
+    with pytest.raises(
+        ValueError,
+        match="Existing prediction row uses schema_mode fallback",
+    ):
+        run_generation(
+            requests=requests,
+            client=FakeCompletionClient(),
+            model_id="test-model",
+            decoding={
+                "temperature": 0.0,
+                "top_p": 1.0,
+                "max_completion_tokens": 1,
+                "stop": [],
+            },
             output_file=output_file,
         )
 

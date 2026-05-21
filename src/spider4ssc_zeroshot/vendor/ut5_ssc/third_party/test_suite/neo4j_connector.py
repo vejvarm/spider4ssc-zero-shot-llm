@@ -7,8 +7,16 @@ import shlex
 from neo4j import AsyncGraphDatabase
 
 class Neo4jConnector:
-    def __init__(self, uri="bolt://localhost:7687", username="neo4j", password="secretserver", 
-                 neo4j_root: pathlib.Path = pathlib.Path("/neo4j/"), database_subfolder: str = None):
+    def __init__(
+        self,
+        uri="bolt://localhost:7687",
+        username="neo4j",
+        password="secretserver",
+        neo4j_root: pathlib.Path = pathlib.Path("/neo4j/"),
+        database_subfolder: str = None,
+        host_db_root: pathlib.Path = None,
+        import_subfolder: str = None,
+    ):
         self.uri = uri
         self.username = username
         self.password = password
@@ -16,16 +24,22 @@ class Neo4jConnector:
         self.database = None
         self.neo4j_root = pathlib.Path(neo4j_root)
         self.container_name = os.getenv("NEO4J_DOCKER_CONTAINER", "neo4j_server")
+        self.host_db_root = pathlib.Path(
+            host_db_root or os.getenv("NEO4J_HOST_DB_ROOT", str(self.neo4j_root))
+        )
         if database_subfolder is None:
             database_subfolder = os.getenv("NEO4J_DB_SUBFOLDER", "import/database")
         self.database_subfolder = database_subfolder
+        if import_subfolder is None:
+            import_subfolder = os.getenv("NEO4J_IMPORT_SUBFOLDER", database_subfolder)
+        self.import_subfolder = import_subfolder.strip("/")
 
     def extract_prefixes_from_ttl(self, db_name: str):
         """
         Extract prefixes from a TTL file.
         """
         prefixes = {}
-        ttl_file = self.neo4j_root.joinpath(self.database_subfolder).joinpath(db_name).joinpath(f"{db_name}.ttl")
+        ttl_file = self.host_db_root.joinpath(self.database_subfolder).joinpath(db_name).joinpath(f"{db_name}.ttl")
         with ttl_file.open() as f:
             for line in f.readlines():
                 if line.startswith("@prefix"):
@@ -123,7 +137,7 @@ class Neo4jConnector:
             commands.append(f'CALL n10s.nsprefixes.add("{prefix}", "{uri}");')
 
         # Import TTL file
-        path_to_ttl = f"file:///{self.database_subfolder}/{db_name}/{db_name}.ttl"
+        path_to_ttl = f"file:///{self.import_subfolder}/{db_name}/{db_name}.ttl"
         print(path_to_ttl)
         commands.append(f'CALL n10s.rdf.import.fetch("{path_to_ttl}", "Turtle");')
 

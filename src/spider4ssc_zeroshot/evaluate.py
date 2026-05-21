@@ -7,6 +7,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from spider4ssc_zeroshot.data import split_db_root, validate_split
 from spider4ssc_zeroshot.vendor.ut5_ssc.seq2seq.metrics.spider.spider_test_suite import (
     compute_test_suite_metric as compute_sql_test_suite_metric,
 )
@@ -47,8 +48,18 @@ def _metric_for_language(language: str) -> MetricFunction:
     raise ValueError(f"Unsupported language: {language}")
 
 
-def _sql_reference_schema(dataset_root: Path, db_id: str) -> dict[str, Any]:
-    sqlite_path = dataset_root / "database_test" / db_id / f"{db_id}.sqlite"
+def _sql_reference_schema(
+    dataset_root: Path,
+    db_id: str,
+    *,
+    split: str,
+    test_db_dir: str,
+) -> dict[str, Any]:
+    sqlite_path = (
+        split_db_root(dataset_root, split, test_db_dir=test_db_dir)
+        / db_id
+        / f"{db_id}.sqlite"
+    )
     schema = dump_db_json_schema(str(sqlite_path), db_id)
     return {
         "db_table_names": schema["table_names_original"],
@@ -67,24 +78,47 @@ def _sql_reference_schema(dataset_root: Path, db_id: str) -> dict[str, Any]:
     }
 
 
+def _reference_query(row: dict[str, Any], *, language: str, split: str) -> str:
+    if language == "sql":
+        return row.get("gold_query") or row["gold_sql"]
+    if split == "test":
+        return ""
+
+    gold_query = row.get("gold_query") or ""
+    if not gold_query:
+        raise ValueError(
+            f"{split} {language} evaluation requires native gold_query in prediction rows"
+        )
+    return gold_query
+
+
 def _build_references(
     rows: list[dict[str, Any]],
     dataset_root: Path,
     language: str,
+    *,
+    split: str,
+    test_db_dir: str,
 ) -> list[dict[str, Any]]:
     schema_cache: dict[str, dict[str, Any]] = {}
     references = []
+    db_root = split_db_root(dataset_root, split, test_db_dir=test_db_dir)
     for row in rows:
         db_id = row["db_id"]
         reference = {
             "db_id": db_id,
-            "db_path": str(dataset_root / "database_test"),
-            "query": row["gold_sql"] if language == "sql" else "",
+            "db_path": str(db_root),
+            "query": _reference_query(row, language=language, split=split),
             "sql": row["gold_sql"],
         }
         if language == "sql":
             if db_id not in schema_cache:
-                schema_cache[db_id] = _sql_reference_schema(dataset_root, db_id)
+                schema_cache[db_id] = _sql_reference_schema(
+                    dataset_root,
+                    db_id,
+                    split=split,
+                    test_db_dir=test_db_dir,
+                )
             reference.update(schema_cache[db_id])
         references.append(reference)
     return references
@@ -118,8 +152,13 @@ def evaluate_predictions(
     run_id: str,
     language: str,
     output_file: Path,
+    *,
+    split: str = "test",
+    schema_mode: str = "strict",
+    test_db_dir: str = "database_test",
 ) -> dict[str, Any]:
     metric_fn = _metric_for_language(language)
+    split = validate_split(split)
     dataset_root = dataset_root.resolve()
     predictions_file = predictions_file.resolve()
     output_file = output_file.resolve()
@@ -128,13 +167,20 @@ def evaluate_predictions(
         raise ValueError(f"No prediction rows found in {predictions_file}")
 
     predictions = [row.get("prediction", "") for row in rows]
-    references = _build_references(rows, dataset_root, language)
+    references = _build_references(
+        rows,
+        dataset_root,
+        language,
+        split=split,
+        test_db_dir=test_db_dir,
+    )
+    db_dir = split_db_root(dataset_root, split, test_db_dir=test_db_dir)
 
     metric = _compute_metric_without_side_effect_files(
         metric_fn,
         predictions,
         references,
-        db_dir=dataset_root / "database_test",
+        db_dir=db_dir,
         language=language,
     )
 
@@ -142,9 +188,10 @@ def evaluate_predictions(
         "run_id": run_id,
         "model_id": rows[0].get("model_id", "unknown"),
         "model_revision": rows[0].get("model_revision", "unknown"),
-        "split": "test",
+        "split": split,
         "language": language,
         "schema": "compact",
+        "schema_mode": schema_mode,
         "n_examples": len(rows),
         "execution_accuracy": float(metric["exec"]),
         "n_execution_errors": 0,

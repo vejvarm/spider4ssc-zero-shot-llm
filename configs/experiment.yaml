@@ -9,6 +9,7 @@ dataset:
 
 experiment:
   schema_serialization: compact
+  schema_mode: strict
   languages:
     - sql
     - sparql
@@ -17,7 +18,7 @@ experiment:
     sql: prompts/sql_zero_shot.txt
     sparql: prompts/sparql_zero_shot.txt
     cypher: prompts/cypher_zero_shot.txt
-  output_root: runs/test
+  output_root: runs
   report_dir: reports
 
 decoding:

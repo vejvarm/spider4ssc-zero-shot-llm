@@ -2,7 +2,14 @@
 set -euo pipefail
 
 MODEL_GROUP="${1:-main}"
-LIMIT="${2:-}"
+SPLIT="${2:-test}"
+LIMIT="${3:-}"
+
+if [[ "${SPLIT}" != "test" && "${SPLIT}" != "dev" ]]; then
+  echo "Usage: scripts/run_matrix.sh MODEL_GROUP SPLIT [LIMIT]" >&2
+  echo "SPLIT must be 'test' or 'dev'." >&2
+  exit 2
+fi
 
 mapfile -t RUN_IDS < <(
   python - "${MODEL_GROUP}" <<'PY'
@@ -38,12 +45,17 @@ PY
   python scripts/wait_for_vllm.py --expected-model "${MODEL_ID}"
   for LANGUAGE in sql sparql cypher; do
     if [[ -n "${LIMIT}" ]]; then
-      spider4ssc-zeroshot generate "${RUN_ID}" "${LANGUAGE}" --model-group "${MODEL_GROUP}" --limit "${LIMIT}"
+      spider4ssc-zeroshot generate "${RUN_ID}" "${LANGUAGE}" \
+        --model-group "${MODEL_GROUP}" \
+        --split "${SPLIT}" \
+        --limit "${LIMIT}"
     else
-      spider4ssc-zeroshot generate "${RUN_ID}" "${LANGUAGE}" --model-group "${MODEL_GROUP}"
+      spider4ssc-zeroshot generate "${RUN_ID}" "${LANGUAGE}" \
+        --model-group "${MODEL_GROUP}" \
+        --split "${SPLIT}"
     fi
-    spider4ssc-zeroshot evaluate "${RUN_ID}" "${LANGUAGE}"
+    spider4ssc-zeroshot evaluate "${RUN_ID}" "${LANGUAGE}" --split "${SPLIT}"
   done
 done
 
-spider4ssc-zeroshot report --runs-dir runs/test --output-dir reports
+spider4ssc-zeroshot report --split "${SPLIT}" --runs-dir "runs/${SPLIT}" --output-dir reports

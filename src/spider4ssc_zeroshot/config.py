@@ -18,6 +18,8 @@ from pydantic import (
 
 DType = Literal["auto", "half", "float16", "bfloat16", "float", "float32"]
 Language = Literal["sql", "sparql", "cypher"]
+SchemaMode = Literal["strict", "fallback"]
+Split = Literal["test", "dev"]
 
 
 class StrictBaseModel(BaseModel):
@@ -47,7 +49,7 @@ class DatasetConfig(StrictBaseModel):
     name: str
     url: str
     local_path: Path
-    split: str
+    split: Split
     test_file: str
     test_db_dir: str
     archive_sha256: str | None = None
@@ -55,6 +57,7 @@ class DatasetConfig(StrictBaseModel):
 
 class ExperimentSettings(StrictBaseModel):
     schema_serialization: Literal["compact"]
+    schema_mode: SchemaMode = "strict"
     languages: list[Language]
     prompt_files: dict[Language, Path]
     output_root: Path
