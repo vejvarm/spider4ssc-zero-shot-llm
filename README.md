@@ -55,6 +55,8 @@ Load the graph stores for the split you are evaluating. The test split uses
 `database_test`; the dev split uses `database`.
 
 ```bash
+chmod -R a+rX data/Spider4SSC/database_test data/Spider4SSC/database
+
 PYTHONPATH=src python -m spider4ssc_zeroshot.vendor.ut5_ssc.seq2seq.serve_rdf4j_graphs \
   data/Spider4SSC \
   --split test \

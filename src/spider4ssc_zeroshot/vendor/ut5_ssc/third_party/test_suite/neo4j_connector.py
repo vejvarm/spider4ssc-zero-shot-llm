@@ -144,9 +144,18 @@ class Neo4jConnector:
         async with self.driver.session(database=self.database) as session:
             for command in commands:
                 try:
-                    await session.run(command)
+                    result = await session.run(command)
+                    if command.startswith("CALL n10s.rdf.import.fetch"):
+                        records = await result.data()
+                        failed_imports = [
+                            record
+                            for record in records
+                            if record.get("terminationStatus") == "KO"
+                        ]
+                        if failed_imports:
+                            raise RuntimeError(f"n10s import failed: {failed_imports}")
                 except Exception as err:
-                    print(f"Command `{command}` not executed ({repr(err)})")
+                    raise RuntimeError(f"Command `{command}` not executed") from err
 
     # async def query_neo4j(self, db_name: str, query: str):
     #     """

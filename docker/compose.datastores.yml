@@ -5,7 +5,7 @@ services:
     ports:
       - "8181:8080"
     volumes:
-      - ./rdf4j-data:/var/rdf4j
+      - rdf4j-data:/var/rdf4j
 
   neo4j:
     image: graphstack/dozerdb:5.20.0.0-alpha.1
@@ -29,3 +29,6 @@ services:
       - ./neo4j-root/plugins:/plugins
       - ./neo4j-root/conf:/conf
       - ../data/Spider4SSC:/import/Spider4SSC:ro
+
+volumes:
+  rdf4j-data:

@@ -23,6 +23,7 @@ logs/
 .env.*
 
 docker/neo4j-data/
+docker/neo4j-root/
 docker/rdf4j-data/
 docker/postgres-data/
 
