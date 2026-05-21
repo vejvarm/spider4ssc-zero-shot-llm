@@ -51,6 +51,10 @@ def test_sm3_adapted_prompt_files_are_renderable_and_contract_aligned():
     sql_prompt = prompt_files["sql"].read_text(encoding="utf-8")
     assert "SQLite SQL" in sql_prompt
     assert "Postgres" not in sql_prompt
+    assert (
+        "Do not include markdown code fences, backticks (`), "
+        "or any text besides the query."
+    ) in sql_prompt
 
     sparql_prompt = prompt_files["sparql"].read_text(encoding="utf-8")
     assert "Do not output PREFIX declarations" in sparql_prompt

@@ -15,6 +15,7 @@ provide the SQL query, without any further explanations.
 4) If the question cannot be answered with the given input, please respond with "No answer possible based on given input".
 5) Pay attention to the columns that are used for the GROUP BY statement.
 6) Pay attention to the columns that are used for the SELECT statement.
+7) Do not include markdown code fences, backticks (`), or any text besides the query.
 
 [Q] = Question, [SQL] = Answer (correct query)
 

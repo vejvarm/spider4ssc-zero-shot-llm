@@ -253,6 +253,10 @@ runs/test/<run_id>/<language>/scores.json
 reports/test_main_matrix.csv
 reports/test_main_matrix.md
 reports/test_main_matrix.tex
+reports/test_execution_accuracy_by_model.pdf
+reports/test_execution_accuracy_by_model.png
+reports/test_empty_prediction_rate_by_model.pdf
+reports/test_empty_prediction_rate_by_model.png
 ```
 
 ## Reproducibility Rules
