@@ -55,6 +55,8 @@ from spider4ssc_zeroshot.config import load_model_groups
 model_group = sys.argv[1]
 run_id = sys.argv[2]
 model = load_model_groups(Path("configs/models.yaml"))[model_group][run_id]
+if model.provider != "vllm":
+    raise SystemExit(f"{run_id} uses provider {model.provider}; serve_vllm.sh only serves vLLM models")
 print(model.model_id)
 print(model.tensor_parallel_size)
 print(model.dtype)

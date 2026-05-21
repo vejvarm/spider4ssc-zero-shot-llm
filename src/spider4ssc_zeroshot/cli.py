@@ -15,7 +15,9 @@ from spider4ssc_zeroshot.data import (
     validate_split,
     write_manifest,
 )
+from spider4ssc_zeroshot.env import load_dotenv
 from spider4ssc_zeroshot.evaluate import evaluate_predictions
+from spider4ssc_zeroshot.openai_client import OpenAIChatClient, OpenAIChatClientConfig
 from spider4ssc_zeroshot.pipeline_validation import validate_pipeline
 from spider4ssc_zeroshot.prompting import PromptTemplate, render_prompt
 from spider4ssc_zeroshot.report import collect_scores, write_reports
@@ -50,6 +52,19 @@ def _effective_schema_mode(experiment_schema_mode: str, schema_mode: str | None)
             param_hint="--schema-mode",
         )
     return effective
+
+
+def _api_key_for_provider(endpoint_api_key_env: str, provider: str) -> str:
+    load_dotenv()
+    api_key = os.getenv(endpoint_api_key_env)
+    if provider == "openai":
+        if not api_key:
+            raise typer.BadParameter(
+                f"{endpoint_api_key_env} is required for OpenAI runs",
+                param_hint=endpoint_api_key_env,
+            )
+        return api_key
+    return api_key or "token-abc123"
 
 
 @app.command("prepare-data")
@@ -138,6 +153,7 @@ def generate(
                 example_id=example["example_id"],
                 split=example["split"],
                 language=language,
+                model_provider=model.provider,
                 db_id=example["db_id"],
                 question=example["question"],
                 gold_sql=example["sql"],
@@ -149,16 +165,28 @@ def generate(
         )
 
     endpoint = experiment.endpoint
-    client = VllmClient(
-        VllmClientConfig(
-            base_url=endpoint.base_url,
-            api_key=os.getenv(endpoint.api_key_env, "token-abc123"),
-            readiness_timeout_seconds=endpoint.readiness_timeout_seconds,
-            request_timeout_seconds=endpoint.request_timeout_seconds,
-            max_retries=endpoint.max_retries,
-            retry_sleep_seconds=endpoint.retry_sleep_seconds,
+    api_key = _api_key_for_provider(endpoint.api_key_env, model.provider)
+    if model.provider == "openai":
+        client = OpenAIChatClient(
+            OpenAIChatClientConfig(
+                base_url=endpoint.base_url,
+                api_key=api_key,
+                request_timeout_seconds=endpoint.request_timeout_seconds,
+                max_retries=endpoint.max_retries,
+                retry_sleep_seconds=endpoint.retry_sleep_seconds,
+            )
         )
-    )
+    else:
+        client = VllmClient(
+            VllmClientConfig(
+                base_url=endpoint.base_url,
+                api_key=api_key,
+                readiness_timeout_seconds=endpoint.readiness_timeout_seconds,
+                request_timeout_seconds=endpoint.request_timeout_seconds,
+                max_retries=endpoint.max_retries,
+                retry_sleep_seconds=endpoint.retry_sleep_seconds,
+            )
+        )
     client.wait_until_ready(model.model_id)
     output_file = (
         experiment.experiment.output_root

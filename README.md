@@ -201,6 +201,22 @@ For a limited smoke run:
 scripts/run_sm3_dev.sh main 20
 ```
 
+Run the OpenAI GPT-5.4 mini comparator with the same SM3-adapted prompts and
+strict pipeline. This uses the fixed snapshot `gpt-5.4-mini-2026-03-17` and
+sets `reasoning_effort: none` in `configs/experiment_sm3_openai.yaml`.
+
+```bash
+export OPENAI_API_KEY="sk-..."
+scripts/run_sm3_openai.sh dev 20
+scripts/run_sm3_openai.sh test
+```
+
+You can also put the key in a local `.env` file, which is ignored by git:
+
+```bash
+OPENAI_API_KEY=sk-...
+```
+
 For a single-language SPARQL smoke run:
 
 ```bash

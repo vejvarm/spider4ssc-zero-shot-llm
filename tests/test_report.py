@@ -16,6 +16,7 @@ def _write_score(path: Path, **overrides: object) -> None:
     score = {
         "run_id": "run-b",
         "model_id": "test-model",
+        "model_provider": "vllm",
         "model_revision": "rev",
         "split": "test",
         "language": "cypher",
@@ -70,6 +71,7 @@ def test_collect_scores_empty_frame_has_report_columns(tmp_path: Path):
     assert list(frame.columns) == [
         "run_id",
         "model_id",
+        "model_provider",
         "split",
         "language",
         "schema_mode",
@@ -80,12 +82,26 @@ def test_collect_scores_empty_frame_has_report_columns(tmp_path: Path):
     assert frame.empty
 
 
+def test_collect_scores_backfills_missing_model_provider(tmp_path: Path):
+    runs_dir = tmp_path / "runs"
+    score_file = runs_dir / "run-a" / "sql" / "scores.json"
+    _write_score(score_file, run_id="run-a", language="sql")
+    score = json.loads(score_file.read_text(encoding="utf-8"))
+    score.pop("model_provider")
+    score_file.write_text(json.dumps(score), encoding="utf-8")
+
+    frame = collect_scores(runs_dir)
+
+    assert list(frame["model_provider"]) == ["unknown"]
+
+
 def test_write_reports_writes_csv_markdown_latex_and_failures(tmp_path: Path):
     frame = pd.DataFrame(
         [
             {
                 "run_id": "run-a",
                 "model_id": "model-a",
+                "model_provider": "vllm",
                 "split": "dev",
                 "language": "sql",
                 "schema_mode": "strict",
@@ -96,6 +112,7 @@ def test_write_reports_writes_csv_markdown_latex_and_failures(tmp_path: Path):
             {
                 "run_id": "run-b",
                 "model_id": "model-b",
+                "model_provider": "openai",
                 "split": "dev",
                 "language": "sparql",
                 "schema_mode": "fallback",
@@ -114,7 +131,7 @@ def test_write_reports_writes_csv_markdown_latex_and_failures(tmp_path: Path):
     tex_text = (output_dir / "dev_main_matrix.tex").read_text(encoding="utf-8")
     failures = pd.read_csv(output_dir / "dev_main_matrix_failures.csv")
 
-    assert "run-a,model-a,dev,sql,strict,1.0,2,0" in csv_text
+    assert "run-a,model-a,vllm,dev,sql,strict,1.0,2,0" in csv_text
     assert "| run_id" in md_text
     assert "run-b" in md_text
     assert "\\begin{tabular}" in tex_text
@@ -127,6 +144,7 @@ def test_write_reports_writes_execution_and_empty_prediction_plots(tmp_path: Pat
             {
                 "run_id": "model-a",
                 "model_id": "model/a",
+                "model_provider": "vllm",
                 "split": "dev",
                 "language": "sql",
                 "schema_mode": "strict",
@@ -137,6 +155,7 @@ def test_write_reports_writes_execution_and_empty_prediction_plots(tmp_path: Pat
             {
                 "run_id": "model-a",
                 "model_id": "model/a",
+                "model_provider": "vllm",
                 "split": "dev",
                 "language": "sparql",
                 "schema_mode": "strict",
@@ -147,6 +166,7 @@ def test_write_reports_writes_execution_and_empty_prediction_plots(tmp_path: Pat
             {
                 "run_id": "model-a",
                 "model_id": "model/a",
+                "model_provider": "vllm",
                 "split": "dev",
                 "language": "cypher",
                 "schema_mode": "strict",
@@ -157,6 +177,7 @@ def test_write_reports_writes_execution_and_empty_prediction_plots(tmp_path: Pat
             {
                 "run_id": "model-b",
                 "model_id": "model/b",
+                "model_provider": "openai",
                 "split": "dev",
                 "language": "sql",
                 "schema_mode": "strict",
@@ -167,6 +188,7 @@ def test_write_reports_writes_execution_and_empty_prediction_plots(tmp_path: Pat
             {
                 "run_id": "model-b",
                 "model_id": "model/b",
+                "model_provider": "openai",
                 "split": "dev",
                 "language": "sparql",
                 "schema_mode": "strict",
@@ -177,6 +199,7 @@ def test_write_reports_writes_execution_and_empty_prediction_plots(tmp_path: Pat
             {
                 "run_id": "model-b",
                 "model_id": "model/b",
+                "model_provider": "openai",
                 "split": "dev",
                 "language": "cypher",
                 "schema_mode": "strict",
@@ -206,6 +229,7 @@ def test_write_reports_plots_missing_language_combinations_without_zero_fill(tmp
             {
                 "run_id": "model-a",
                 "model_id": "model/a",
+                "model_provider": "vllm",
                 "split": "dev",
                 "language": "sql",
                 "schema_mode": "strict",
@@ -216,6 +240,7 @@ def test_write_reports_plots_missing_language_combinations_without_zero_fill(tmp
             {
                 "run_id": "model-b",
                 "model_id": "model/b",
+                "model_provider": "openai",
                 "split": "dev",
                 "language": "cypher",
                 "schema_mode": "strict",
@@ -231,9 +256,9 @@ def test_write_reports_plots_missing_language_combinations_without_zero_fill(tmp
 
     assert (output_dir / "dev_execution_accuracy_by_model.pdf").stat().st_size > 0
     csv_text = (output_dir / "dev_main_matrix.csv").read_text(encoding="utf-8")
-    assert "model-a,model/a,dev,sql,strict,0.75,100,0" in csv_text
-    assert "model-b,model/b,dev,cypher,strict,0.3,100,3" in csv_text
-    assert "model-a,model/a,dev,sparql,strict,0.0" not in csv_text
+    assert "model-a,model/a,vllm,dev,sql,strict,0.75,100,0" in csv_text
+    assert "model-b,model/b,openai,dev,cypher,strict,0.3,100,3" in csv_text
+    assert "model-a,model/a,vllm,dev,sparql,strict,0.0" not in csv_text
 
 
 def test_write_reports_skips_plots_for_empty_frame(tmp_path: Path):

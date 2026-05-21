@@ -18,6 +18,8 @@ from pydantic import (
 
 DType = Literal["auto", "half", "float16", "bfloat16", "float", "float32"]
 Language = Literal["sql", "sparql", "cypher"]
+Provider = Literal["vllm", "openai"]
+ReasoningEffort = Literal["none", "low", "medium", "high", "xhigh"]
 SchemaMode = Literal["strict", "fallback"]
 Split = Literal["test", "dev"]
 
@@ -27,22 +29,43 @@ class StrictBaseModel(BaseModel):
 
 
 class ModelConfig(StrictBaseModel):
+    provider: Provider = "vllm"
     model_id: str
     family: str
     size_label: str
-    tensor_parallel_size: StrictInt = Field(ge=1)
-    dtype: DType
-    gpu_memory_utilization: StrictFloat = Field(gt=0.0, le=1.0)
-    max_model_len: StrictInt = Field(ge=1024)
-    trust_remote_code: StrictBool
-    requires_hf_terms: StrictBool
+    tensor_parallel_size: StrictInt | None = Field(default=None, ge=1)
+    dtype: DType | None = None
+    gpu_memory_utilization: StrictFloat | None = Field(default=None, gt=0.0, le=1.0)
+    max_model_len: StrictInt | None = Field(default=None, ge=1024)
+    trust_remote_code: StrictBool | None = None
+    requires_hf_terms: StrictBool | None = None
 
     @field_validator("gpu_memory_utilization", mode="before")
     @classmethod
     def validate_gpu_memory_utilization_float(cls, value: object) -> object:
+        if value is None:
+            return value
         if type(value) is not float:
             raise ValueError("gpu_memory_utilization must be a float")
         return value
+
+    @model_validator(mode="after")
+    def validate_provider_fields(self) -> ModelConfig:
+        if self.provider != "vllm":
+            return self
+
+        required_fields = [
+            "tensor_parallel_size",
+            "dtype",
+            "gpu_memory_utilization",
+            "max_model_len",
+            "trust_remote_code",
+            "requires_hf_terms",
+        ]
+        missing = [field for field in required_fields if getattr(self, field) is None]
+        if missing:
+            raise ValueError(f"vllm provider requires: {', '.join(missing)}")
+        return self
 
 
 class DatasetConfig(StrictBaseModel):
@@ -93,6 +116,7 @@ class DecodingConfig(StrictBaseModel):
     top_p: StrictFloat = Field(default=1.0, gt=0.0, le=1.0)
     max_completion_tokens: StrictInt = Field(default=2048, ge=1)
     stop: list[str] = Field(default_factory=lambda: ["```"])
+    reasoning_effort: ReasoningEffort | None = None
 
     @field_validator("temperature", "top_p", mode="before")
     @classmethod

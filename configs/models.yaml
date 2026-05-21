@@ -61,3 +61,10 @@ appendix:
     max_model_len: 8192
     trust_remote_code: false
     requires_hf_terms: false
+
+openai:
+  gpt54_mini_20260317:
+    provider: openai
+    model_id: gpt-5.4-mini-2026-03-17
+    family: gpt-5.4
+    size_label: mini

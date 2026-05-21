@@ -209,6 +209,224 @@ def test_generate_uses_configured_test_split_file_before_vllm(monkeypatch, tmp_p
     )
 
 
+def test_generate_selects_openai_client_and_records_provider(monkeypatch, tmp_path):
+    dataset_root = tmp_path / "Spider4SSC"
+    dataset_root.mkdir()
+    (dataset_root / "test.json").write_text(
+        json.dumps(
+            [
+                {
+                    "db_id": "tiny_school",
+                    "question": "How many students are there?",
+                    "sql": "SELECT count(*) FROM student",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    config = tmp_path / "experiment_openai.yaml"
+    config.write_text(
+        "dataset:\n"
+        "  name: Spider4SSC\n"
+        "  url: https://example.org/Spider4SSC.tgz\n"
+        f"  local_path: {dataset_root.as_posix()}\n"
+        "  split: test\n"
+        "  test_file: test.json\n"
+        "  test_db_dir: database_test\n"
+        "  archive_sha256: null\n"
+        "experiment:\n"
+        "  schema_serialization: compact\n"
+        "  languages:\n"
+        "    - sql\n"
+        "  prompt_files:\n"
+        "    sql: prompts/sql_zero_shot.txt\n"
+        "  schema_mode: strict\n"
+        f"  output_root: {(tmp_path / 'runs' / 'sm3_adapted').as_posix()}\n"
+        f"  report_dir: {(tmp_path / 'reports' / 'sm3_adapted').as_posix()}\n"
+        "decoding:\n"
+        "  reasoning_effort: none\n"
+        "endpoint:\n"
+        "  base_url: https://api.openai.com/v1\n"
+        "  api_key_env: OPENAI_API_KEY\n"
+        "reproducibility:\n"
+        "  forbid_prompt_change_after_full_run: true\n"
+        "  record_full_prompt: true\n"
+        "  record_raw_completion: true\n"
+        "  record_model_revision: true\n",
+        encoding="utf-8",
+    )
+    models = tmp_path / "models.yaml"
+    models.write_text(
+        "openai:\n"
+        "  gpt54_mini_20260317:\n"
+        "    provider: openai\n"
+        "    model_id: gpt-5.4-mini-2026-03-17\n"
+        "    family: gpt-5.4\n"
+        "    size_label: mini\n",
+        encoding="utf-8",
+    )
+    captured = {}
+
+    class FakeOpenAIClient:
+        def __init__(self, config):
+            captured["client_config"] = config
+
+        def wait_until_ready(self, model_id):
+            captured["wait_model_id"] = model_id
+
+    def fake_run_generation(requests, client, model_id, decoding, output_file):
+        captured["requests"] = requests
+        captured["client"] = client
+        captured["model_id"] = model_id
+        captured["decoding"] = decoding
+        captured["output_file"] = output_file
+
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setattr(cli, "OpenAIChatClient", FakeOpenAIClient)
+    monkeypatch.setattr(cli, "VllmClient", lambda config: (_ for _ in ()).throw(AssertionError))
+    monkeypatch.setattr(cli, "serialize_example_schema", lambda *args, **kwargs: "schema")
+    monkeypatch.setattr(
+        cli,
+        "schema_provenance_for_example",
+        lambda *args, **kwargs: "sqlite-schema-dump",
+    )
+    monkeypatch.setattr(cli, "run_generation", fake_run_generation)
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "generate",
+            "gpt54_mini_20260317",
+            "sql",
+            "--config",
+            str(config),
+            "--models",
+            str(models),
+            "--model-group",
+            "openai",
+            "--limit",
+            "1",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert captured["client_config"].base_url == "https://api.openai.com/v1"
+    assert captured["client_config"].api_key == "sk-test"
+    assert captured["wait_model_id"] == "gpt-5.4-mini-2026-03-17"
+    assert captured["model_id"] == "gpt-5.4-mini-2026-03-17"
+    assert captured["decoding"]["reasoning_effort"] == "none"
+    assert captured["requests"][0].model_provider == "openai"
+    assert captured["output_file"] == (
+        tmp_path
+        / "runs"
+        / "sm3_adapted"
+        / "test"
+        / "gpt54_mini_20260317"
+        / "sql"
+        / "predictions.jsonl"
+    )
+
+
+def test_generate_loads_openai_api_key_from_dotenv(monkeypatch, tmp_path):
+    dataset_root = tmp_path / "Spider4SSC"
+    dataset_root.mkdir()
+    (dataset_root / "test.json").write_text(
+        json.dumps(
+            [
+                {
+                    "db_id": "tiny_school",
+                    "question": "How many students are there?",
+                    "sql": "SELECT count(*) FROM student",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    prompt_file = tmp_path / "sql_prompt.txt"
+    prompt_file.write_text("{schema}\n{question}\n", encoding="utf-8")
+    config = tmp_path / "experiment_openai.yaml"
+    config.write_text(
+        "dataset:\n"
+        "  name: Spider4SSC\n"
+        "  url: https://example.org/Spider4SSC.tgz\n"
+        f"  local_path: {dataset_root.as_posix()}\n"
+        "  split: test\n"
+        "  test_file: test.json\n"
+        "  test_db_dir: database_test\n"
+        "  archive_sha256: null\n"
+        "experiment:\n"
+        "  schema_serialization: compact\n"
+        "  languages:\n"
+        "    - sql\n"
+        "  prompt_files:\n"
+        f"    sql: {prompt_file.as_posix()}\n"
+        "  schema_mode: strict\n"
+        f"  output_root: {(tmp_path / 'runs' / 'sm3_adapted').as_posix()}\n"
+        f"  report_dir: {(tmp_path / 'reports' / 'sm3_adapted').as_posix()}\n"
+        "decoding:\n"
+        "  reasoning_effort: none\n"
+        "endpoint:\n"
+        "  base_url: https://api.openai.com/v1\n"
+        "  api_key_env: OPENAI_API_KEY\n"
+        "reproducibility:\n"
+        "  forbid_prompt_change_after_full_run: true\n"
+        "  record_full_prompt: true\n"
+        "  record_raw_completion: true\n"
+        "  record_model_revision: true\n",
+        encoding="utf-8",
+    )
+    models = tmp_path / "models.yaml"
+    models.write_text(
+        "openai:\n"
+        "  gpt54_mini_20260317:\n"
+        "    provider: openai\n"
+        "    model_id: gpt-5.4-mini-2026-03-17\n"
+        "    family: gpt-5.4\n"
+        "    size_label: mini\n",
+        encoding="utf-8",
+    )
+    (tmp_path / ".env").write_text("OPENAI_API_KEY=sk-from-dotenv\n", encoding="utf-8")
+    captured = {}
+
+    class FakeOpenAIClient:
+        def __init__(self, config):
+            captured["client_config"] = config
+
+        def wait_until_ready(self, model_id):
+            pass
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setattr(cli, "OpenAIChatClient", FakeOpenAIClient)
+    monkeypatch.setattr(cli, "serialize_example_schema", lambda *args, **kwargs: "schema")
+    monkeypatch.setattr(
+        cli,
+        "schema_provenance_for_example",
+        lambda *args, **kwargs: "sqlite-schema-dump",
+    )
+    monkeypatch.setattr(cli, "run_generation", lambda *args, **kwargs: None)
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "generate",
+            "gpt54_mini_20260317",
+            "sql",
+            "--config",
+            str(config),
+            "--models",
+            str(models),
+            "--model-group",
+            "openai",
+            "--limit",
+            "1",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert captured["client_config"].api_key == "sk-from-dotenv"
+
+
 def test_validate_pipeline_reports_errors_without_traceback(tmp_path):
     dataset_root = tmp_path / "Spider4SSC"
     db_dir = dataset_root / "database_test" / "tiny_school"

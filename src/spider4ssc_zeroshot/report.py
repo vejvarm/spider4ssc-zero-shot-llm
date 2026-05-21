@@ -19,6 +19,7 @@ LANGUAGE_PALETTE = {
 REPORT_COLUMNS = [
     "run_id",
     "model_id",
+    "model_provider",
     "split",
     "language",
     "schema_mode",
@@ -37,6 +38,10 @@ def collect_scores(runs_dir: Path) -> pd.DataFrame:
         return pd.DataFrame(columns=REPORT_COLUMNS)
 
     frame = pd.DataFrame(rows)
+    if "model_provider" not in frame.columns:
+        frame["model_provider"] = "unknown"
+    else:
+        frame["model_provider"] = frame["model_provider"].fillna("unknown")
     frame["language"] = pd.Categorical(
         frame["language"],
         categories=LANGUAGE_ORDER,
@@ -47,8 +52,12 @@ def collect_scores(runs_dir: Path) -> pd.DataFrame:
 
 
 def _main_matrix(frame: pd.DataFrame) -> pd.DataFrame:
-    columns = [column for column in REPORT_COLUMNS if column in frame.columns]
-    return frame.loc[:, columns].copy()
+    matrix = frame.copy()
+    for column in REPORT_COLUMNS:
+        if column not in matrix.columns:
+            matrix[column] = "unknown" if column == "model_provider" else pd.NA
+    matrix["model_provider"] = matrix["model_provider"].fillna("unknown")
+    return matrix.loc[:, REPORT_COLUMNS].copy()
 
 
 def _format_cell(value: object) -> str:

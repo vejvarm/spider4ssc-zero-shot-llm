@@ -187,6 +187,7 @@ def evaluate_predictions(
     scores = {
         "run_id": run_id,
         "model_id": rows[0].get("model_id", "unknown"),
+        "model_provider": rows[0].get("model_provider", "unknown"),
         "model_revision": rows[0].get("model_revision", "unknown"),
         "split": split,
         "language": language,

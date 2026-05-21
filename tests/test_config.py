@@ -47,7 +47,20 @@ def test_load_model_groups_reads_main_matrix():
 
     assert "main" in groups
     assert groups["main"]["qwen3_4b_instruct_2507"].model_id == "Qwen/Qwen3-4B-Instruct-2507"
+    assert groups["main"]["qwen3_4b_instruct_2507"].provider == "vllm"
     assert groups["main"]["gemma3_27b_it"].tensor_parallel_size == 2
+
+
+def test_load_model_groups_reads_openai_group():
+    groups = load_model_groups(Path("configs/models.yaml"))
+
+    model = groups["openai"]["gpt54_mini_20260317"]
+    assert model.provider == "openai"
+    assert model.model_id == "gpt-5.4-mini-2026-03-17"
+    assert model.family == "gpt-5.4"
+    assert model.size_label == "mini"
+    assert model.tensor_parallel_size is None
+    assert model.dtype is None
 
 
 def test_load_experiment_config_reads_fixed_languages():
@@ -60,6 +73,7 @@ def test_load_experiment_config_reads_fixed_languages():
     assert config.experiment.output_root == Path("runs")
     assert config.decoding.temperature == 0.0
     assert config.decoding.max_completion_tokens == 2048
+    assert config.decoding.reasoning_effort is None
     assert config.endpoint.api_key_env == "VLLM_API_KEY"
     assert not hasattr(config.endpoint, "api_key")
 
@@ -76,6 +90,21 @@ def test_load_sm3_adapted_experiment_config_reads_isolated_prompt_variant():
     }
     assert config.experiment.output_root == Path("runs/sm3_adapted")
     assert config.experiment.report_dir == Path("reports/sm3_adapted")
+
+
+def test_load_sm3_openai_experiment_config_uses_openai_endpoint_and_reasoning():
+    config = load_experiment_config(Path("configs/experiment_sm3_openai.yaml"))
+
+    assert config.experiment.prompt_files == {
+        "sql": Path("prompts/sm3_adapted_sql_zero_shot.txt"),
+        "sparql": Path("prompts/sm3_adapted_sparql_zero_shot.txt"),
+        "cypher": Path("prompts/sm3_adapted_cypher_zero_shot.txt"),
+    }
+    assert config.experiment.output_root == Path("runs/sm3_adapted")
+    assert config.experiment.report_dir == Path("reports/sm3_adapted")
+    assert config.endpoint.base_url == "https://api.openai.com/v1"
+    assert config.endpoint.api_key_env == "OPENAI_API_KEY"
+    assert config.decoding.reasoning_effort == "none"
 
 
 def test_invalid_language_is_rejected():
@@ -148,6 +177,13 @@ def test_invalid_decode_and_endpoint_bounds_are_rejected():
         EndpointConfig(request_timeout_seconds=0)
 
 
+def test_decoding_reasoning_effort_accepts_none_and_rejects_unknown_values():
+    assert DecodingConfig(reasoning_effort="none").reasoning_effort == "none"
+    assert DecodingConfig(reasoning_effort=None).reasoning_effort is None
+    with pytest.raises(ValueError):
+        DecodingConfig(reasoning_effort="minimal")
+
+
 def test_float_fields_reject_integer_values():
     with pytest.raises(ValueError, match="top_p must be a float"):
         DecodingConfig(top_p=1)
@@ -210,4 +246,26 @@ def test_invalid_model_dtype_is_rejected():
             max_model_len=8192,
             trust_remote_code=False,
             requires_hf_terms=False,
+        )
+
+
+def test_openai_model_config_allows_missing_vllm_serving_fields():
+    model = ModelConfig(
+        provider="openai",
+        model_id="gpt-5.4-mini-2026-03-17",
+        family="gpt-5.4",
+        size_label="mini",
+    )
+
+    assert model.provider == "openai"
+    assert model.tensor_parallel_size is None
+    assert model.gpu_memory_utilization is None
+
+
+def test_vllm_model_config_requires_serving_fields():
+    with pytest.raises(ValueError, match="vllm provider requires"):
+        ModelConfig(
+            model_id="example/model",
+            family="example",
+            size_label="1B",
         )

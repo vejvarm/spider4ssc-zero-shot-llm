@@ -14,6 +14,7 @@ class GenerationRequest:
     example_id: int
     split: str
     language: str
+    model_provider: str
     db_id: str
     question: str
     gold_sql: str
@@ -45,6 +46,7 @@ def _validate_existing_rows(
     rows: list[dict[str, Any]],
     *,
     model_id: str,
+    model_provider: str | None,
     language: str | None,
     split: str | None,
     schema_mode: str | None,
@@ -54,6 +56,16 @@ def _validate_existing_rows(
         if row_model_id != model_id:
             raise ValueError(
                 f"Existing prediction row uses model_id {row_model_id}, expected {model_id}"
+            )
+        row_model_provider = row.get("model_provider")
+        if (
+            model_provider is not None
+            and row_model_provider is not None
+            and row_model_provider != model_provider
+        ):
+            raise ValueError(
+                "Existing prediction row uses model_provider "
+                f"{row_model_provider}, expected {model_provider}"
             )
         if language is not None and row.get("language") != language:
             raise ValueError(
@@ -75,7 +87,7 @@ def _created_at_utc() -> str:
 
 
 def _decoding_metadata(decoding: Any) -> dict[str, Any]:
-    keys = ["temperature", "top_p", "max_completion_tokens", "stop"]
+    keys = ["temperature", "top_p", "max_completion_tokens", "stop", "reasoning_effort"]
     if isinstance(decoding, dict):
         return {key: decoding[key] for key in keys if key in decoding}
     return {key: getattr(decoding, key) for key in keys if hasattr(decoding, key)}
@@ -116,6 +128,7 @@ def _write_metadata(
         "language": _single_metadata_value(rows, "language"),
         "model_id": model_id,
         "model_revision": model_revision,
+        "model_provider": _single_metadata_value(rows, "model_provider"),
         "n_completed": len(rows),
         "n_generated": n_generated,
         "n_requested": n_requested,
@@ -149,9 +162,11 @@ def run_generation(
     expected_language = requests[0].language if requests else None
     expected_split = requests[0].split if requests else None
     expected_schema_mode = requests[0].schema_mode if requests else None
+    expected_model_provider = requests[0].model_provider if requests else None
     _validate_existing_rows(
         existing_rows,
         model_id=model_id,
+        model_provider=expected_model_provider,
         language=expected_language,
         split=expected_split,
         schema_mode=expected_schema_mode,

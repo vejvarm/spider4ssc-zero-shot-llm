@@ -51,6 +51,7 @@ def test_evaluate_predictions_writes_scores_and_uses_metric(monkeypatch, tmp_pat
                 "gold_query": "SELECT count(*) FROM singer",
                 "prediction": "SELECT count(*) FROM singer",
                 "model_id": "model-a",
+                "model_provider": "openai",
                 "model_revision": "rev-a",
             },
             {
@@ -61,6 +62,7 @@ def test_evaluate_predictions_writes_scores_and_uses_metric(monkeypatch, tmp_pat
                 "gold_query": "SELECT name FROM singer",
                 "prediction": "  ",
                 "model_id": "model-a",
+                "model_provider": "openai",
                 "model_revision": "rev-a",
             },
         ],
@@ -130,6 +132,7 @@ def test_evaluate_predictions_writes_scores_and_uses_metric(monkeypatch, tmp_pat
     assert scores == {
         "run_id": "run-1",
         "model_id": "model-a",
+        "model_provider": "openai",
         "model_revision": "rev-a",
         "split": "test",
         "language": "sql",
