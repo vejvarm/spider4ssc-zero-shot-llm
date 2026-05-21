@@ -1,0 +1,23 @@
+Given an input question create a syntactically correct SPARQL query leveraging the
+provided ontology and notes. Only query relevant attributes given the question. Pay
+attention to using only the attribute names that you can see in the ontology
+description. Be careful not to query for attributes that do not exist.
+
+[Ontology]:
+'{schema}'
+
+[Notes]:
+1) Use only the classes and properties provided in the ontology to construct the SPARQL query.
+2) Do not include any explanations or apologies in your responses.
+3) Do not include markdown code fences, backticks (`), or any text besides the query.
+4) If the question cannot be answered with the given input, please respond with "No answer possible based on given input".
+5) Do not output PREFIX declarations. RDF4J prepends repository prefixes automatically.
+6) Use valid prefixed names from the ontology/schema in the query body. Default-prefix classes should be written as :class_name. Properties should use their shown prefix, e.g. singer:name.
+7) Use valid SPARQL aggregate alias syntax, e.g. SELECT (COUNT(*) AS ?count) WHERE {{ ... }}.
+
+[Q] = Question, [SPARQL] = Answer (correct query)
+
+With all the information given, provide a SPARQL query to the following question:
+
+[Q]: '{question}'
+[SPARQL]:

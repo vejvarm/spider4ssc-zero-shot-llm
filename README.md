@@ -126,6 +126,26 @@ spider4ssc-zeroshot extract-neo4j-schemas \
 The OpenAI-compatible vLLM API key is read from `VLLM_API_KEY`. Local vLLM
 accepts a dummy value when the server was started with the same key.
 
+To keep Hugging Face and vLLM model files off the main disk, configure the
+model cache paths before starting vLLM:
+
+```bash
+source scripts/setup_env_vars.sh
+```
+
+By default this uses `/backup/models`. To use another root:
+
+```bash
+SPIDER4SSC_MODEL_CACHE_ROOT=/backup/models source scripts/setup_env_vars.sh
+```
+
+You can also apply the environment to one command without changing the current
+shell:
+
+```bash
+scripts/setup_env_vars.sh scripts/serve_vllm.sh qwen3_4b_instruct_2507 main
+```
+
 ```bash
 . .venv/bin/activate
 export VLLM_API_KEY="${VLLM_API_KEY:-token-abc123}"
@@ -159,6 +179,44 @@ for debugging model behavior before spending time on the test matrix.
 spider4ssc-zeroshot generate qwen3_4b_instruct_2507 sparql --split dev --schema-mode strict
 spider4ssc-zeroshot evaluate qwen3_4b_instruct_2507 sparql --split dev --schema-mode strict
 spider4ssc-zeroshot report --split dev --runs-dir runs/dev --output-dir reports
+```
+
+## SM3-Adapted Prompt Variant
+
+The default prompts remain the baseline. To connect runs to the SM3-Text-to-Query
+schema 0-shot prompt family, use the SM3-adapted config. It keeps outputs
+separate from baseline runs.
+
+Run the full SM3-adapted matrix for all configured models and all three
+languages:
+
+```bash
+scripts/run_sm3_dev.sh main
+scripts/run_sm3_test.sh main
+```
+
+For a limited smoke run:
+
+```bash
+scripts/run_sm3_dev.sh main 20
+```
+
+For a single-language SPARQL smoke run:
+
+```bash
+spider4ssc-zeroshot generate qwen3_4b_instruct_2507 sparql \
+  --config configs/experiment_sm3_adapted.yaml \
+  --split dev \
+  --schema-mode strict \
+  --limit 20
+spider4ssc-zeroshot evaluate qwen3_4b_instruct_2507 sparql \
+  --config configs/experiment_sm3_adapted.yaml \
+  --split dev \
+  --schema-mode strict
+spider4ssc-zeroshot report \
+  --split dev \
+  --runs-dir runs/sm3_adapted/dev \
+  --output-dir reports/sm3_adapted
 ```
 
 ## Fallback Smoke Run
@@ -200,6 +258,8 @@ reports/test_main_matrix.tex
 ## Reproducibility Rules
 
 - Use the prompts in `prompts/` unchanged for reported runs.
+- Use `configs/experiment_sm3_adapted.yaml` for the SM3-adapted prompt variant
+  and report it separately from the baseline prompt results.
 - Use `temperature: 0.0`, `top_p: 1.0`, and `max_completion_tokens: 2048`.
 - Record raw completions and postprocessed predictions.
 - Record the Hugging Face model revision in every prediction row.

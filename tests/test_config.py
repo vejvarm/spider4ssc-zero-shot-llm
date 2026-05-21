@@ -64,6 +64,20 @@ def test_load_experiment_config_reads_fixed_languages():
     assert not hasattr(config.endpoint, "api_key")
 
 
+def test_load_sm3_adapted_experiment_config_reads_isolated_prompt_variant():
+    config = load_experiment_config(Path("configs/experiment_sm3_adapted.yaml"))
+
+    assert config.dataset.split == "test"
+    assert config.experiment.languages == ["sql", "sparql", "cypher"]
+    assert config.experiment.prompt_files == {
+        "sql": Path("prompts/sm3_adapted_sql_zero_shot.txt"),
+        "sparql": Path("prompts/sm3_adapted_sparql_zero_shot.txt"),
+        "cypher": Path("prompts/sm3_adapted_cypher_zero_shot.txt"),
+    }
+    assert config.experiment.output_root == Path("runs/sm3_adapted")
+    assert config.experiment.report_dir == Path("reports/sm3_adapted")
+
+
 def test_invalid_language_is_rejected():
     with pytest.raises(ValueError, match="Unsupported language"):
         ExperimentConfig(

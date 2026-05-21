@@ -1,0 +1,43 @@
+dataset:
+  name: Spider4SSC
+  url: "https://www.dropbox.com/scl/fi/oj1tdcoq32d25wqq7ys0i/Spider4SSC.tgz?rlkey=82zp08flt9ijvd59fb8iw74vu&st=0m250tmw&dl=1"
+  local_path: data/Spider4SSC
+  split: test
+  test_file: test.json
+  test_db_dir: database_test
+  archive_sha256: null
+
+experiment:
+  schema_serialization: compact
+  schema_mode: strict
+  languages:
+    - sql
+    - sparql
+    - cypher
+  prompt_files:
+    sql: prompts/sm3_adapted_sql_zero_shot.txt
+    sparql: prompts/sm3_adapted_sparql_zero_shot.txt
+    cypher: prompts/sm3_adapted_cypher_zero_shot.txt
+  output_root: runs/sm3_adapted
+  report_dir: reports/sm3_adapted
+
+decoding:
+  temperature: 0.0
+  top_p: 1.0
+  max_completion_tokens: 2048
+  stop:
+    - "```"
+
+endpoint:
+  base_url: http://localhost:8000/v1
+  api_key_env: VLLM_API_KEY
+  readiness_timeout_seconds: 1800
+  request_timeout_seconds: 180
+  max_retries: 5
+  retry_sleep_seconds: 5
+
+reproducibility:
+  forbid_prompt_change_after_full_run: true
+  record_full_prompt: true
+  record_raw_completion: true
+  record_model_revision: true
