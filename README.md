@@ -46,15 +46,28 @@ cannot be extracted without an integrity check.
 
 ## Start Datastores
 
+Use the split-specific datastore scripts. Each script resets RDF4J, starts both
+datastore containers, loads the selected split into RDF4J and Neo4j, extracts
+any missing strict Neo4j schema JSON files, and validates the selected split.
+Running one script after the other is supported; the later run leaves both graph
+stores ready for that split.
+
+```bash
+scripts/serve_test.sh
+scripts/serve_dev.sh
+```
+
+The test split uses `database_test`; the dev split uses `database`. The SQL
+evaluator reads SQLite files directly from the configured split database folder.
+The graph scripts are needed for SPARQL/Cypher execution and strict Cypher
+schema extraction.
+
+Manual equivalent for test:
+
 ```bash
 docker compose -f docker/compose.datastores.yml down -v
 docker compose -f docker/compose.datastores.yml up -d
-```
 
-Load the graph stores for the split you are evaluating. The test split uses
-`database_test`; the dev split uses `database`.
-
-```bash
 chmod -R a+rX data/Spider4SSC/database_test data/Spider4SSC/database
 
 PYTHONPATH=src python -m spider4ssc_zeroshot.vendor.ut5_ssc.seq2seq.serve_rdf4j_graphs \
@@ -72,12 +85,19 @@ PYTHONPATH=src python -m spider4ssc_zeroshot.vendor.ut5_ssc.seq2seq.serve_neo4j_
   --neo4j-root "$(pwd)/docker/neo4j-root" \
   --db-subfolder database_test \
   --import-subfolder import/Spider4SSC/database_test
+
+spider4ssc-zeroshot extract-neo4j-schemas \
+  --split test \
+  --neo4j-root docker/neo4j-root \
+  --import-subfolder import/Spider4SSC/database_test \
+  --no-wipe
+
+spider4ssc-zeroshot validate-pipeline --split test --schema-mode strict
 ```
 
-For dev, replace `--split test`, `database_test`, and
+For manual dev loading, replace `--split test`, `database_test`, and
 `import/Spider4SSC/database_test` with `--split dev`, `database`, and
-`import/Spider4SSC/database`. The SQL evaluator reads SQLite files directly from
-the configured split database folder.
+`import/Spider4SSC/database`.
 
 ## Validate Pipeline
 
@@ -90,14 +110,15 @@ spider4ssc-zeroshot validate-pipeline --split test --schema-mode strict
 spider4ssc-zeroshot validate-pipeline --split dev --schema-mode strict
 ```
 
-If strict validation reports missing Neo4j schema JSON, load the relevant split
-into Neo4j and extract schemas:
+If strict validation reports missing Neo4j schema JSON after loading a split,
+extract schemas without wiping the loaded Neo4j databases:
 
 ```bash
 spider4ssc-zeroshot extract-neo4j-schemas \
   --split test \
   --neo4j-root docker/neo4j-root \
-  --import-subfolder import/Spider4SSC/database_test
+  --import-subfolder import/Spider4SSC/database_test \
+  --no-wipe
 ```
 
 ## Serve One Model
