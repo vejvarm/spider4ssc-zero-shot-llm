@@ -1,7 +1,7 @@
 cff-version: 1.2.0
 message: "If you use this reproducibility package, cite the associated Spider4SSC uT5 paper and this repository."
-title: "Spider4SSC Zero-Shot LLM Baselines"
-version: "0.1.0"
+title: "Spider4SSC Zero-Shot LLM Baselines for Are We Too Focused on Single Query Language? Investigating Text-to-SQL/SPARQL/Cypher Task Complexity via Fine-tuning Unbiased T5 Models."
+version: "1.0.2"
 date-released: "2026-05-21"
 authors:
   - family-names: "Vejvar"
